@@ -1,54 +1,48 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from "next/server";
 
-// 허용된 테넌트 목록 (DB에서 관리 가능)
-const VALID_TENANTS = ['bizspring', 'demo']
+/**
+ * Subdomain routing middleware
+ * hahmshout.bmp.ai → /hahmshout
+ * mprd.bmp.ai → /mprd
+ * frameout.bmp.ai → /frameout
+ * *.bmp.ai → /{slug}
+ */
+export function middleware(req: NextRequest) {
+  const host = req.headers.get("host") || "";
+  const url = req.nextUrl.clone();
 
-// 제외할 호스트 (Vercel 기본 도메인)
-const EXCLUDED_HOSTS = [
-  'localhost',
-  'vercel.app',
-  'bizsmart.co.kr', // 루트 도메인 제외
-]
-
-export function middleware(request: NextRequest) {
-  const hostname = request.headers.get('host') || ''
-  const pathname = request.nextUrl.pathname
-  
-  // 정적 파일, API 라우트 제외
+  // Skip for API routes, static files, Next.js internals
   if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
-    pathname.startsWith('/favicon') ||
-    pathname.includes('.')
+    url.pathname.startsWith("/_next") ||
+    url.pathname.startsWith("/api") ||
+    url.pathname.includes(".")
   ) {
-    return NextResponse.next()
+    return NextResponse.next();
   }
 
-  // Vercel 기본 도메인이나 localhost는 패스
-  if (EXCLUDED_HOSTS.some(h => hostname.includes(h))) {
-    return NextResponse.next()
+  // Extract subdomain
+  // Handles: xxx.bmp.ai, xxx.brand-hub-six.vercel.app
+  const baseDomains = ["bmp.ai", "brand-hub-six.vercel.app"];
+  let subdomain: string | null = null;
+
+  for (const base of baseDomains) {
+    if (host.endsWith(`.${base}`)) {
+      subdomain = host.replace(`.${base}`, "").split(".").pop() || null;
+      break;
+    }
   }
 
-  // 서브도메인 추출: bizspring.bizsmart.co.kr → bizspring
-  const subdomain = hostname.split('.')[0]
-  
-  // 유효한 테넌트인지 확인
-  if (subdomain && VALID_TENANTS.includes(subdomain)) {
-    // 서브도메인을 URL 경로로 리라이트
-    // bizspring.bizsmart.co.kr/geo_consulting → /bizspring/geo_consulting
-    const url = request.nextUrl.clone()
-    url.pathname = `/${subdomain}${pathname}`
-    
-    return NextResponse.rewrite(url)
+  // If subdomain found and we're on root path, rewrite to tenant page
+  if (subdomain && subdomain !== "www" && url.pathname === "/") {
+    url.pathname = `/${subdomain}`;
+    return NextResponse.rewrite(url);
   }
 
-  return NextResponse.next()
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    // 정적 파일 제외
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    "/((?!_next/static|_next/image|favicon.ico|.*\\..*$).*)",
   ],
-}
+};
