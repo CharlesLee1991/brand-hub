@@ -441,6 +441,59 @@ export default function TenantPage() {
                 ))}
               </div>
             )}
+
+            {/* Report Downloads */}
+            <section>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">📥 진단 리포트</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Citation Moat Report */}
+                {eeatData?.client_analyses?.map((client) => {
+                  const reportSlug = client.slug;
+                  return (
+                    <button
+                      key={`moat-${client.slug}`}
+                      onClick={() =>
+                        window.open(
+                          `${BAWEE_EF}/geobh-moat-report?slug=${reportSlug}`,
+                          "_blank"
+                        )
+                      }
+                      className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">🛡️</span>
+                            <p className="font-bold text-gray-900">Citation Moat™ 리포트</p>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            {client.url.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">AI가 이 브랜드를 얼마나 신뢰하고 인용하는가</p>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {/* EEAT Report (future) */}
+                {sc && (
+                  <div className="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-5 text-left opacity-60">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">📋</span>
+                          <p className="font-bold text-gray-500">EEAT 분석 리포트</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">E-E-A-T 스코어카드 + 액션플랜</p>
+                      </div>
+                      <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded">준비중</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         )}
 
