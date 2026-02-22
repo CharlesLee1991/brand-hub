@@ -185,11 +185,21 @@ function CitationMoatTab({ efUrl, clientSlug }: { efUrl: string; clientSlug: str
           <p className="text-sm text-gray-500 mt-1">AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.</p>
         </div>
         <button
-          onClick={() => window.open(`${efUrl}/geobh-moat-report?slug=${clientSlug}`, "_blank")}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+          onClick={() => {
+            if (!html) return;
+            const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `citation-moat-${clientSlug}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          disabled={!html}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5 disabled:opacity-40"
         >
-          <ExternalLink className="w-3.5 h-3.5" />
-          새 탭에서 열기
+          <FileText className="w-3.5 h-3.5" />
+          다운로드
         </button>
       </div>
 
