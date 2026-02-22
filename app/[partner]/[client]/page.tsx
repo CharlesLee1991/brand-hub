@@ -22,6 +22,7 @@ import {
   CheckCircle,
   Star,
   MessageSquare,
+  Wand2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -309,7 +310,7 @@ export default function ClientPage() {
     client_analyses: { slug: string; url: string; industry: string; score: number; grade: string }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "services" | "chat">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "contentlab" | "services" | "chat">("overview");
 
   // Chat states
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -323,6 +324,13 @@ export default function ClientPage() {
   const [somData, setSomData] = useState<any>(null);
   const [somLoading, setSomLoading] = useState(false);
   const [somFetched, setSomFetched] = useState(false);
+
+  // Content Lab state
+  const [clSelectedType, setClSelectedType] = useState<string | null>(null);
+  const [clSelectedLlm, setClSelectedLlm] = useState<string | null>(null);
+  const [clGenLoading, setClGenLoading] = useState(false);
+  const [clGenResult, setClGenResult] = useState<any>(null);
+  const [clHistory, setClHistory] = useState<any[]>([]);
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
@@ -446,6 +454,7 @@ export default function ClientPage() {
     { key: "analysis", label: "EEAT 분석", icon: Shield },
     { key: "citation", label: "Citation Moat", icon: Award },
     { key: "som", label: "SoM 점유율", icon: BarChart3 },
+    { key: "contentlab", label: "콘텐츠 랩", icon: Wand2 },
     { key: "services", label: "서비스", icon: Award },
     { key: "chat", label: "AI 어시스턴트", icon: MessageSquare },
   ] as const;
@@ -593,7 +602,7 @@ export default function ClientPage() {
             {/* Report Downloads */}
             <section>
               <h3 className="text-lg font-bold text-gray-900 mb-4">📥 진단 리포트</h3>
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 {/* Citation Moat Report */}
                 <button
                   onClick={() => setActiveSection("citation")}
@@ -642,6 +651,23 @@ export default function ClientPage() {
                         <p className="font-bold text-gray-900">SoM 점유율</p>
                       </div>
                       <p className="text-xs text-gray-400 mt-1">AI 검색 점유율</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
+                  </div>
+                </button>
+
+                {/* Content Lab */}
+                <button
+                  onClick={() => setActiveSection("contentlab")}
+                  className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">✨</span>
+                        <p className="font-bold text-gray-900">콘텐츠 랩</p>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">AI 콘텐츠 생성</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
                   </div>
@@ -998,6 +1024,187 @@ export default function ClientPage() {
             })()}
           </div>
         )}
+
+        {/* ──── CONTENT LAB TAB ──── */}
+        {activeSection === "contentlab" && (() => {
+          const CL_TYPES = [
+            { key: "blog", label: "블로그/홈페이지", icon: "📝", desc: "EEAT 기반 SEO 콘텐츠", rec: "claude" },
+            { key: "faq", label: "FAQ + Schema", icon: "❓", desc: "구조화 FAQ + JSON-LD", rec: "claude" },
+            { key: "youtube", label: "YouTube 대본", icon: "🎬", desc: "영상 스크립트", rec: "gpt" },
+            { key: "ad", label: "광고 배너 카피", icon: "📢", desc: "헤드라인 + CTA 3종", rec: "gpt" },
+            { key: "community", label: "커뮤니티/SNS", icon: "💬", desc: "네이버/인스타/브런치", rec: "gemini" },
+            { key: "social", label: "소셜 트렌드", icon: "🐦", desc: "X 감성 분석 + 여론", rec: "grok" },
+            { key: "jsonld", label: "JSON-LD 구조화", icon: "🔗", desc: "Schema.org 코드", rec: "claude" },
+          ];
+          const CL_LLMS = [
+            { key: "claude", name: "Claude", clr: "#d97706", str: "장문 · 구조화 · 한국어" },
+            { key: "gpt", name: "GPT-4o", clr: "#10a37f", str: "대화체 · 스크립트 · 카피" },
+            { key: "gemini", name: "Gemini 2.5", clr: "#4285f4", str: "트렌드 · 캐주얼 · 빠른 생성" },
+            { key: "grok", name: "Grok", clr: "#000000", str: "소셜 감성 · X 트렌드 · 실시간" },
+          ];
+          const efBase = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
+          const doGen = async (llmKey?: string) => {
+            const t = clSelectedType; const l = llmKey || clSelectedLlm;
+            if (!t || !l || !client) return;
+            setClGenLoading(true); setClGenResult(null);
+            try {
+              const r = await fetch(efBase + "/geobh-content-gen", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ slug: client, content_type: t, llm: l }),
+              });
+              const d = await r.json();
+              setClGenResult(d);
+              if (d.success) setClHistory(prev => [...prev, d]);
+            } catch {}
+            setClGenLoading(false);
+          };
+          return (
+            <div className="space-y-8">
+              {/* Header */}
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Wand2 className="w-5 h-5" style={{ color }} /> 콘텐츠 랩
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">EEAT 분석 결과를 기반으로 AI가 콘텐츠를 생성합니다. 4개 LLM 비교 가능</p>
+              </div>
+
+              {/* Content Type Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {CL_TYPES.map(ct => {
+                  const sel = clSelectedType === ct.key;
+                  const recLlm = CL_LLMS.find(l => l.key === ct.rec);
+                  return (
+                    <button key={ct.key}
+                      onClick={() => { setClSelectedType(ct.key); setClSelectedLlm(ct.rec); setClGenResult(null); }}
+                      className={`p-3 rounded-xl border text-left transition-all ${sel ? "ring-2 shadow-sm bg-white" : "bg-white hover:border-gray-300"}`}
+                      style={sel ? { borderColor: color } : {}}>
+                      <div className="flex items-start justify-between">
+                        <span className="text-xl">{ct.icon}</span>
+                        {recLlm && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold text-white" style={{ backgroundColor: recLlm.clr }}>{recLlm.name}</span>}
+                      </div>
+                      <p className="text-sm font-bold text-gray-900 mt-1.5">{ct.label}</p>
+                      <p className="text-xs text-gray-500">{ct.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* LLM Selection + Generate */}
+              {clSelectedType && (
+                <div className="space-y-3">
+                  <div className="flex gap-2 items-center flex-wrap">
+                    {CL_LLMS.map(llm => {
+                      const isRec = CL_TYPES.find(c => c.key === clSelectedType)?.rec === llm.key;
+                      const sel = clSelectedLlm === llm.key;
+                      return (
+                        <button key={llm.key}
+                          onClick={() => { setClSelectedLlm(llm.key); setClGenResult(null); }}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${sel ? "border-2 shadow-sm" : "bg-white hover:border-gray-300"}`}
+                          style={sel ? { borderColor: llm.clr, backgroundColor: llm.clr + "08" } : {}}>
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: llm.clr }} />
+                          <span className="font-bold text-gray-900">{llm.name}</span>
+                          {isRec && <span className="text-[10px] px-1 py-0.5 bg-amber-100 text-amber-700 rounded font-bold">추천</span>}
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => doGen()} disabled={clGenLoading || !clSelectedLlm}
+                      className="ml-auto px-5 py-2 rounded-lg text-sm font-bold text-white transition-all disabled:opacity-50"
+                      style={{ backgroundColor: CL_LLMS.find(l => l.key === clSelectedLlm)?.clr || color }}>
+                      {clGenLoading ? "생성 중..." : "🚀 생성"}
+                    </button>
+                  </div>
+                  {clSelectedLlm && (
+                    <p className="text-xs text-gray-400">{CL_LLMS.find(l => l.key === clSelectedLlm)?.name} — {CL_LLMS.find(l => l.key === clSelectedLlm)?.str}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Loading */}
+              {clGenLoading && (
+                <div className="bg-white rounded-xl border p-8 flex items-center justify-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color }} />
+                  <span className="text-sm text-gray-500">{CL_LLMS.find(l => l.key === clSelectedLlm)?.name}이 콘텐츠를 생성하고 있습니다... (10~30초)</span>
+                </div>
+              )}
+
+              {/* Result */}
+              {clGenResult?.success && (
+                <div className="space-y-3">
+                  <div className="bg-white rounded-xl border overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CL_LLMS.find(l => l.key === clGenResult.llm)?.clr }} />
+                        <span className="text-sm font-bold">{clGenResult.llm_label || clGenResult.llm_model}</span>
+                        <span className="text-xs text-gray-400">·</span>
+                        <span className="text-sm text-gray-600">{clGenResult.content_label}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        <span>{(clGenResult.elapsed_ms / 1000).toFixed(1)}s</span>
+                        <span>{clGenResult.content?.length?.toLocaleString()}자</span>
+                        <button onClick={() => navigator.clipboard.writeText(clGenResult.content)}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
+                      </div>
+                    </div>
+                    <div className="p-4 max-h-[400px] overflow-y-auto">
+                      <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap leading-relaxed">{clGenResult.content}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-gray-500">다른 AI 비교:</span>
+                    {CL_LLMS.filter(l => l.key !== clGenResult.llm).map(llm => (
+                      <button key={llm.key} onClick={() => { setClSelectedLlm(llm.key); setTimeout(() => doGen(llm.key), 50); }}
+                        disabled={clGenLoading} className="text-xs px-3 py-1.5 rounded-lg border hover:shadow-sm flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: llm.clr }} />{llm.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {clGenResult && !clGenResult.success && (
+                <div className="bg-red-50 rounded-xl border border-red-200 p-4">
+                  <p className="text-sm text-red-700">오류: {clGenResult.error}</p>
+                </div>
+              )}
+
+              {/* History */}
+              {clHistory.length > 1 && (
+                <div>
+                  <h4 className="text-sm font-bold text-gray-700 mb-2">📊 생성 비교 ({clHistory.length}건)</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm bg-white rounded-xl border">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">AI</th>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">유형</th>
+                          <th className="text-center px-3 py-2 font-medium text-gray-600">시간</th>
+                          <th className="text-center px-3 py-2 font-medium text-gray-600">글자수</th>
+                          <th className="text-center px-3 py-2 font-medium text-gray-600"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {clHistory.map((h, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CL_LLMS.find(l => l.key === h.llm)?.clr }} />
+                              <span className="font-medium">{h.llm_label || h.llm_model}</span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">{h.content_label}</td>
+                            <td className="px-3 py-2 text-center">{(h.elapsed_ms / 1000).toFixed(1)}s</td>
+                            <td className="px-3 py-2 text-center">{h.content?.length?.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-center">
+                              <button onClick={() => setClGenResult(h)} className="text-xs text-blue-600 hover:underline">보기</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ──── SERVICES TAB ──── */}
         {activeSection === "services" && (
