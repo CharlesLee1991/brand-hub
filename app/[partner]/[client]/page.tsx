@@ -15,6 +15,7 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   ExternalLink,
   AlertTriangle,
   CheckCircle,
@@ -502,12 +503,7 @@ export default function ClientPage() {
               <div className="grid md:grid-cols-2 gap-4">
                 {/* Citation Moat Report */}
                 <button
-                  onClick={() =>
-                    window.open(
-                      `${BAWEE_EF}/geobh-moat-report?slug=${client}`,
-                      "_blank"
-                    )
-                  }
+                  onClick={() => setActiveSection("citation")}
                   className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
                 >
                   <div className="flex items-start justify-between">
@@ -521,7 +517,7 @@ export default function ClientPage() {
                       </p>
                       <p className="text-xs text-gray-400 mt-1">AI가 이 브랜드를 얼마나 신뢰하고 인용하는가</p>
                     </div>
-                    <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
                   </div>
                 </button>
 
