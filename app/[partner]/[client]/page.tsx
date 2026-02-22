@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
+  BarChart3,
   ExternalLink,
   AlertTriangle,
   CheckCircle,
@@ -308,7 +309,7 @@ export default function ClientPage() {
     client_analyses: { slug: string; url: string; industry: string; score: number; grade: string }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "services" | "chat">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "services" | "chat">("overview");
 
   // Chat states
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -319,6 +320,9 @@ export default function ClientPage() {
 
   // Page scores expand
   const [showAllPages, setShowAllPages] = useState(false);
+  const [somData, setSomData] = useState<any>(null);
+  const [somLoading, setSomLoading] = useState(false);
+  const [somFetched, setSomFetched] = useState(false);
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
@@ -353,6 +357,21 @@ export default function ClientPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  /* ── SoM lazy fetch ── */
+  useEffect(() => {
+    if (activeSection === "som" && !somFetched && client) {
+      setSomLoading(true);
+      fetch(`${BAWEE_EF}/geobh-som?slug=${client}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) setSomData(data);
+          setSomFetched(true);
+          setSomLoading(false);
+        })
+        .catch(() => { setSomFetched(true); setSomLoading(false); });
+    }
+  }, [activeSection, somFetched, client]);
 
   /* ── Chat submit ── */
   const handleChat = async (query: string) => {
@@ -426,6 +445,7 @@ export default function ClientPage() {
     { key: "overview", label: "개요", icon: TrendingUp },
     { key: "analysis", label: "EEAT 분석", icon: Shield },
     { key: "citation", label: "Citation Moat", icon: Award },
+    { key: "som", label: "SoM 점유율", icon: BarChart3 },
     { key: "services", label: "서비스", icon: Award },
     { key: "chat", label: "AI 어시스턴트", icon: MessageSquare },
   ] as const;
@@ -573,7 +593,7 @@ export default function ClientPage() {
             {/* Report Downloads */}
             <section>
               <h3 className="text-lg font-bold text-gray-900 mb-4">📥 진단 리포트</h3>
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
                 {/* Citation Moat Report */}
                 <button
                   onClick={() => setActiveSection("citation")}
@@ -583,12 +603,9 @@ export default function ClientPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-lg">🛡️</span>
-                        <p className="font-bold text-gray-900">Citation Moat™ 리포트</p>
+                        <p className="font-bold text-gray-900">Citation Moat™</p>
                       </div>
-                      <p className="text-sm text-gray-500">
-                        {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">AI가 이 브랜드를 얼마나 신뢰하고 인용하는가</p>
+                      <p className="text-xs text-gray-400 mt-1">AI 인용 신뢰도</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
                   </div>
@@ -604,17 +621,31 @@ export default function ClientPage() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-lg">📋</span>
-                          <p className="font-bold text-gray-900">EEAT 분석 리포트</p>
+                          <p className="font-bold text-gray-900">EEAT 분석</p>
                         </div>
-                        <p className="text-sm text-gray-500">
-                          {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">E-E-A-T 스코어카드 + 액션플랜</p>
+                        <p className="text-xs text-gray-400 mt-1">스코어카드 + 액션플랜</p>
                       </div>
                       <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
                     </div>
                   </button>
                 )}
+
+                {/* SoM Report */}
+                <button
+                  onClick={() => setActiveSection("som")}
+                  className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">📊</span>
+                        <p className="font-bold text-gray-900">SoM 점유율</p>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">AI 검색 점유율</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
+                  </div>
+                </button>
               </div>
             </section>
           </div>
@@ -848,6 +879,124 @@ export default function ClientPage() {
         {/* ──── CITATION MOAT TAB ──── */}
         {activeSection === "citation" && (
           <CitationMoatTab efUrl={BAWEE_EF} clientSlug={client} />
+        )}
+
+        {/* ──── SOM TAB ──── */}
+        {activeSection === "som" && (
+          <div className="space-y-6">
+            {somLoading && (
+              <div className="bg-white rounded-2xl border p-12 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+              </div>
+            )}
+            {!somLoading && !somData && (
+              <div className="bg-white rounded-2xl border p-12 text-center">
+                <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">SoM 분석 데이터가 아직 없습니다</p>
+                <p className="text-sm text-gray-400 mt-1">AI 검색 점유율 분석이 완료되면 여기에 표시됩니다</p>
+              </div>
+            )}
+            {!somLoading && somData?.latest && (() => {
+              const lt = somData.latest;
+              const llm = somData.llm_shares || {};
+              const trends = somData.trends || [];
+              const llmEntries = Object.entries(llm).sort((a: any, b: any) => b[1] - a[1]);
+              const maxLlm = Math.max(...Object.values(llm).map((v: any) => Number(v) || 0), 1);
+              const llmColors: Record<string, string> = {
+                "챗지피티": "#10a37f", "퍼플렉시티": "#6366f1", "제미나이": "#4285f4", "클로드": "#d97706"
+              };
+              return (
+                <>
+                  {/* Hero Stats */}
+                  <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-white rounded-2xl border p-5 text-center">
+                      <p className="text-3xl font-black" style={{ color }}>{lt.overall_share}%</p>
+                      <p className="text-xs text-gray-500 mt-1">AI 점유율</p>
+                      {lt.share_change !== 0 && (
+                        <p className={`text-xs mt-1 font-bold ${lt.share_change > 0 ? "text-green-600" : "text-red-500"}`}>
+                          {lt.share_change > 0 ? "+" : ""}{lt.share_change}%p
+                        </p>
+                      )}
+                    </div>
+                    <div className="bg-white rounded-2xl border p-5 text-center">
+                      <p className="text-3xl font-black text-gray-900">{lt.avg_rank}</p>
+                      <p className="text-xs text-gray-500 mt-1">평균 순위</p>
+                    </div>
+                    <div className="bg-white rounded-2xl border p-5 text-center">
+                      <p className="text-3xl font-black text-blue-600">{lt.top3_rate}%</p>
+                      <p className="text-xs text-gray-500 mt-1">Top3 비율</p>
+                    </div>
+                    <div className="bg-white rounded-2xl border p-5 text-center">
+                      <p className="text-3xl font-black text-purple-600">{lt.first_mention_rate}%</p>
+                      <p className="text-xs text-gray-500 mt-1">첫 번째 언급</p>
+                    </div>
+                  </section>
+
+                  {/* LLM Breakdown */}
+                  <section className="bg-white rounded-2xl border p-6">
+                    <h4 className="font-bold text-gray-900 mb-1">AI 엔진별 점유율</h4>
+                    <p className="text-sm text-gray-500 mb-5">{lt.total_queries}개 질의 · {lt.total_responses}개 응답 · {lt.analysis_date}</p>
+                    <div className="space-y-4">
+                      {llmEntries.map(([name, share]: [string, any]) => (
+                        <div key={name}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-sm font-medium text-gray-700">{name}</span>
+                            <span className="text-sm font-bold" style={{ color: llmColors[name] || "#6b7280" }}>{share}%</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-3">
+                            <div
+                              className="h-3 rounded-full transition-all duration-500"
+                              style={{ width: `${(Number(share) / 100) * 100}%`, backgroundColor: llmColors[name] || "#6b7280" }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* Trends */}
+                  {trends.length > 1 && (
+                    <section className="bg-white rounded-2xl border p-6">
+                      <h4 className="font-bold text-gray-900 mb-4">점유율 추이</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="text-left px-4 py-3 font-medium text-gray-600">날짜</th>
+                              <th className="text-center px-3 py-3 font-medium text-gray-600">점유율</th>
+                              <th className="text-center px-3 py-3 font-medium text-gray-600">변동</th>
+                              <th className="text-center px-3 py-3 font-medium text-gray-600">순위</th>
+                              <th className="text-center px-3 py-3 font-medium text-gray-600">Top3</th>
+                              <th className="text-center px-3 py-3 font-medium text-gray-600">질의</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {trends.map((t: any, i: number) => (
+                              <tr key={i} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-gray-700">{t.date}</td>
+                                <td className="text-center px-3 py-3 font-bold" style={{ color }}>{t.share}%</td>
+                                <td className={`text-center px-3 py-3 font-bold ${t.change > 0 ? "text-green-600" : t.change < 0 ? "text-red-500" : "text-gray-400"}`}>
+                                  {t.change > 0 ? "+" : ""}{t.change}%p
+                                </td>
+                                <td className="text-center px-3 py-3 text-gray-700">{t.rank}</td>
+                                <td className="text-center px-3 py-3 text-gray-700">{t.top3}%</td>
+                                <td className="text-center px-3 py-3 text-gray-500">{t.queries}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Meta */}
+                  <p className="text-xs text-gray-400 text-right">
+                    데이터: GEOcare.AI SoM Engine · {somData.site_domain}
+                  </p>
+                </>
+              );
+            })()}
+          </div>
         )}
 
         {/* ──── SERVICES TAB ──── */}
