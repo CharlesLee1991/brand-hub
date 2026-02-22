@@ -162,6 +162,55 @@ function PackageCard({
   );
 }
 
+/* ────── Citation Moat Tab (fetch + srcdoc) ────── */
+function CitationMoatTab({ efUrl, clientSlug }: { efUrl: string; clientSlug: string }) {
+  const [html, setHtml] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${efUrl}/geobh-moat-report?slug=${clientSlug}`)
+      .then((res) => res.text())
+      .then((text) => {
+        setHtml(text);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [efUrl, clientSlug]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">🛡️ Citation Moat™ 리포트</h2>
+          <p className="text-sm text-gray-500 mt-1">AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.</p>
+        </div>
+        <button
+          onClick={() => window.open(`${efUrl}/geobh-moat-report?slug=${clientSlug}`, "_blank")}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          새 탭에서 열기
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl border overflow-hidden" style={{ height: "calc(100vh - 180px)" }}>
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+          </div>
+        ) : (
+          <iframe
+            srcDoc={html}
+            className="w-full h-full border-0"
+            title="Citation Moat Report"
+            sandbox="allow-same-origin"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ────── Main Page Component ────── */
 export default function ClientPage() {
   const { partner, client } = useParams() as { partner: string; client: string };
@@ -646,36 +695,7 @@ export default function ClientPage() {
 
         {/* ──── CITATION MOAT TAB ──── */}
         {activeSection === "citation" && (
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">🛡️ Citation Moat™ 리포트</h2>
-                <p className="text-sm text-gray-500 mt-1">AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.</p>
-              </div>
-              <button
-                onClick={() =>
-                  window.open(
-                    `${BAWEE_EF}/geobh-moat-report?slug=${client}`,
-                    "_blank"
-                  )
-                }
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                새 탭에서 열기
-              </button>
-            </div>
-
-            {/* Inline Report */}
-            <div className="bg-white rounded-xl border overflow-hidden" style={{ height: "calc(100vh - 180px)" }}>
-              <iframe
-                src={`${BAWEE_EF}/geobh-moat-report?slug=${client}`}
-                className="w-full h-full border-0"
-                title="Citation Moat Report"
-              />
-            </div>
-          </div>
+          <CitationMoatTab efUrl={BAWEE_EF} clientSlug={client} />
         )}
 
         {/* ──── SERVICES TAB ──── */}
