@@ -32,9 +32,12 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // If subdomain found and we're on root path, rewrite to tenant page
-  if (subdomain && subdomain !== "www" && url.pathname === "/") {
-    url.pathname = `/${subdomain}`;
+  // If subdomain found, prepend it to the path
+  // hahmshout.bmp.ai/ → /hahmshout
+  // hahmshout.bmp.ai/samsung-hospital → /hahmshout/samsung-hospital
+  if (subdomain && subdomain !== "www") {
+    const currentPath = url.pathname === "/" ? "" : url.pathname;
+    url.pathname = `/${subdomain}${currentPath}`;
     return NextResponse.rewrite(url);
   }
 

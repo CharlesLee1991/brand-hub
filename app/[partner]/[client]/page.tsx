@@ -163,8 +163,8 @@ function PackageCard({
 }
 
 /* ────── Main Page Component ────── */
-export default function TenantPage() {
-  const { tenant } = useParams() as { tenant: string };
+export default function ClientPage() {
+  const { partner, client } = useParams() as { partner: string; client: string };
 
   // Data states
   const [hubConfig, setHubConfig] = useState<HubConfig | null>(null);
@@ -175,7 +175,7 @@ export default function TenantPage() {
     client_analyses: { slug: string; url: string; industry: string; score: number; grade: string }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "services" | "chat">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "services" | "chat">("overview");
 
   // Chat states
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -189,32 +189,23 @@ export default function TenantPage() {
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
-  /* ── Load hub config from geobh-data ── */
+  /* ── Load hub config + EEAT data ── */
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        // 1. Hub config
-        const configRes = await fetch(`${BAWEE_EF}/geobh-data?slug=${tenant}`);
+        // 1. Hub config (partner의 config 로드)
+        const configRes = await fetch(`${BAWEE_EF}/geobh-data?slug=${partner}`);
         const configData = await configRes.json();
         if (configData.success !== false && configData.config) {
           setHubConfig(configData.config);
         }
 
-        // 2. EEAT data (try by partner slug mapping)
-        const slugMap: Record<string, string> = {
-          hahmshout: "samsung-hospital",
-          mprd: "taxtok",
-          frameout: "yedaham",
-          mplanit: "shoppingnt",
-        };
-        const eeatSlug = slugMap[tenant];
-        if (eeatSlug) {
-          const eeatRes = await fetch(`${BAWEE_EF}/geobh-eeat?slug=${eeatSlug}`);
-          const eeat = await eeatRes.json();
-          if (eeat.success) {
-            setEeatData(eeat);
-          }
+        // 2. EEAT data (client slug로 직접 조회)
+        const eeatRes = await fetch(`${BAWEE_EF}/geobh-eeat?slug=${client}`);
+        const eeat = await eeatRes.json();
+        if (eeat.success) {
+          setEeatData(eeat);
         }
       } catch (err) {
         console.error("Load error:", err);
@@ -223,7 +214,7 @@ export default function TenantPage() {
       }
     }
     loadData();
-  }, [tenant]);
+  }, [partner, client]);
 
   /* ── Chat scroll ── */
   useEffect(() => {
@@ -249,7 +240,7 @@ export default function TenantPage() {
       const res = await fetch(`${BAWEE_EF}/khub-query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_code: tenant, query: query.trim(), include_sources: true }),
+        body: JSON.stringify({ tenant_code: partner, query: query.trim(), include_sources: true }),
       });
       const data = await res.json();
       const assistantMsg: ChatMessage = {
@@ -301,26 +292,24 @@ export default function TenantPage() {
   const tabs = [
     { key: "overview", label: "개요", icon: TrendingUp },
     { key: "analysis", label: "EEAT 분석", icon: Shield },
+    { key: "citation", label: "Citation Moat", icon: Award },
     { key: "services", label: "서비스", icon: Award },
     { key: "chat", label: "AI 어시스턴트", icon: MessageSquare },
   ] as const;
 
-  const suggestedQuestions =
-    tenant === "hahmshout"
-      ? [
-          "함샤우트글로벌은 어떤 회사인가요?",
-          "삼성서울병원 EEAT 점수는?",
-          "PR-GEO 통합 서비스가 뭔가요?",
-          "GEO 솔루션 상세 설명해줘",
-        ]
-      : ["어떤 서비스를 제공하나요?", "비용은 어떻게 되나요?", "포트폴리오가 있나요?"];
+  const suggestedQuestions = [
+    `${eeatData?.analysis?.url ? eeatData.analysis.url.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") : client} EEAT 점수는?`,
+    "PR-GEO 통합 서비스가 뭔가요?",
+    "GEO 최적화 방법 알려줘",
+    "경쟁사 대비 우리 브랜드 현황은?",
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ════ Header ════ */}
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4">
-          <Link href="/" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <Link href={`/${partner}`} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </Link>
           <div
@@ -330,8 +319,14 @@ export default function TenantPage() {
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-gray-900 truncate">{hubConfig.brand_name}</h1>
-            <p className="text-xs text-gray-500 truncate">{hubConfig.brand_description?.slice(0, 60)}...</p>
+            <div className="flex items-center gap-2 text-xs text-gray-400 mb-0.5">
+              <span>{hubConfig.brand_name}</span>
+              <span>›</span>
+              <span className="text-gray-600 font-medium">{eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}</span>
+            </div>
+            <h1 className="font-bold text-gray-900 truncate">
+              {eeatData?.analysis?.industry ? `${eeatData.analysis.industry} — ` : ""}{client}
+            </h1>
           </div>
         </div>
 
@@ -367,49 +362,49 @@ export default function TenantPage() {
               className="rounded-2xl p-8 text-white"
               style={{ background: `linear-gradient(135deg, ${color}, ${color}dd)` }}
             >
-              <h2 className="text-2xl font-bold mb-2">{hubConfig.brand_name}</h2>
-              <p className="text-white/80 leading-relaxed">{hubConfig.brand_description}</p>
+              <h2 className="text-2xl font-bold mb-2">
+                {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
+              </h2>
+              <p className="text-white/80 leading-relaxed">
+                {eeatData?.analysis?.industry ? `${eeatData.analysis.industry} · ` : ""}
+                {hubConfig.brand_name} 담당 고객사
+              </p>
             </section>
 
-            {/* EEAT Summary Cards */}
+            {/* EEAT Score Card */}
             {sc && (
               <section>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">고객사 E-E-A-T 분석 현황</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {eeatData?.client_analyses?.map((client) => (
-                    <div
-                      key={client.slug}
-                      className="bg-white rounded-xl border p-5 hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => setActiveSection("analysis")}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-bold text-gray-900">
-                            {client.url.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
-                          </p>
-                          <p className="text-sm text-gray-500 mt-0.5">{client.industry}</p>
-                        </div>
-                        <div
-                          className="flex items-center justify-center w-12 h-12 rounded-xl text-white font-black text-xl"
-                          style={{ backgroundColor: client.grade === "A" ? "#10b981" : "#3b82f6" }}
-                        >
-                          {client.grade}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="flex-1 bg-gray-100 rounded-full h-2">
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${client.score}%`,
-                              backgroundColor: client.grade === "A" ? "#10b981" : "#3b82f6",
-                            }}
-                          />
-                        </div>
-                        <span className="text-sm font-bold text-gray-700">{client.score}/100</span>
-                      </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-4">E-E-A-T 분석 현황</h3>
+                <div
+                  className="bg-white rounded-xl border p-5 hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => setActiveSection("analysis")}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-bold text-gray-900">
+                        {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-0.5">{eeatData?.analysis?.industry}</p>
                     </div>
-                  ))}
+                    <div
+                      className="flex items-center justify-center w-12 h-12 rounded-xl text-white font-black text-xl"
+                      style={{ backgroundColor: sc.overall_grade === "A" ? "#10b981" : "#3b82f6" }}
+                    >
+                      {sc.overall_grade}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${sc.overall_score}%`,
+                          backgroundColor: sc.overall_grade === "A" ? "#10b981" : "#3b82f6",
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-gray-700">{sc.overall_score}/100</span>
+                  </div>
                 </div>
               </section>
             )}
@@ -447,35 +442,29 @@ export default function TenantPage() {
               <h3 className="text-lg font-bold text-gray-900 mb-4">📥 진단 리포트</h3>
               <div className="grid md:grid-cols-2 gap-4">
                 {/* Citation Moat Report */}
-                {eeatData?.client_analyses?.map((client) => {
-                  const reportSlug = client.slug;
-                  return (
-                    <button
-                      key={`moat-${client.slug}`}
-                      onClick={() =>
-                        window.open(
-                          `${BAWEE_EF}/geobh-moat-report?slug=${reportSlug}`,
-                          "_blank"
-                        )
-                      }
-                      className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-lg">🛡️</span>
-                            <p className="font-bold text-gray-900">Citation Moat™ 리포트</p>
-                          </div>
-                          <p className="text-sm text-gray-500">
-                            {client.url.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">AI가 이 브랜드를 얼마나 신뢰하고 인용하는가</p>
-                        </div>
-                        <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
+                <button
+                  onClick={() =>
+                    window.open(
+                      `${BAWEE_EF}/geobh-moat-report?slug=${client}`,
+                      "_blank"
+                    )
+                  }
+                  className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">🛡️</span>
+                        <p className="font-bold text-gray-900">Citation Moat™ 리포트</p>
                       </div>
-                    </button>
-                  );
-                })}
+                      <p className="text-sm text-gray-500">
+                        {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">AI가 이 브랜드를 얼마나 신뢰하고 인용하는가</p>
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
+                  </div>
+                </button>
 
                 {/* EEAT Report (future) */}
                 {sc && (
@@ -652,6 +641,61 @@ export default function TenantPage() {
                 </p>
               </section>
             )}
+          </div>
+        )}
+
+        {/* ──── CITATION MOAT TAB ──── */}
+        {activeSection === "citation" && (
+          <div className="space-y-8">
+            {/* Moat Report CTA */}
+            <section
+              className="rounded-2xl p-8 text-white"
+              style={{ background: `linear-gradient(135deg, #1e293b, #334155)` }}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold mb-2">🛡️ Citation Moat™ 리포트</h2>
+                  <p className="text-white/70 text-sm leading-relaxed">
+                    AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.<br />
+                    경쟁 소스 역추적, 인용 기회 발견, 벤치마크 비교까지 포함됩니다.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() =>
+                    window.open(
+                      `${BAWEE_EF}/geobh-moat-report?slug=${client}`,
+                      "_blank"
+                    )
+                  }
+                  className="px-5 py-2.5 bg-white text-gray-900 rounded-lg font-bold text-sm hover:bg-gray-100 transition-colors"
+                >
+                  📥 전체 리포트 열기
+                </button>
+                <button
+                  onClick={() =>
+                    window.open(
+                      `${BAWEE_EF}/geobh-moat-report?slug=${client}&format=json`,
+                      "_blank"
+                    )
+                  }
+                  className="px-5 py-2.5 bg-white/10 text-white rounded-lg text-sm hover:bg-white/20 transition-colors"
+                >
+                  JSON 보기
+                </button>
+              </div>
+            </section>
+
+            {/* Placeholder for inline citation data (P1) */}
+            <section className="bg-white rounded-xl border p-8 text-center">
+              <Award className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+              <h3 className="font-bold text-gray-400 mb-2">인라인 Citation 대시보드</h3>
+              <p className="text-sm text-gray-400">
+                Moat Score, 경쟁 소스 역추적, 쿼리 커버리지를 이 탭에서 직접 확인할 수 있도록 구현 예정입니다.
+              </p>
+              <p className="text-xs text-gray-300 mt-3">P1 · geobh-citation Edge Function</p>
+            </section>
           </div>
         )}
 
