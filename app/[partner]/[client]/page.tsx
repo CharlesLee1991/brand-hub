@@ -45,6 +45,11 @@ interface EEATAnalysis {
     authoritativeness: { score: number; evidence: string[]; gaps: string[] };
     trustworthiness: { score: number; evidence: string[]; gaps: string[] };
   };
+  action_plan?: {
+    strengths?: string[];
+    weaknesses?: string[];
+    priority_actions?: { action: string; priority: number; effort: string; eeat_impact?: string }[];
+  };
 }
 
 interface PageScore {
@@ -160,6 +165,74 @@ function PackageCard({
         ))}
       </ul>
     </div>
+  );
+}
+
+/* ────── EEAT Report Inline (fetch + srcdoc) ────── */
+function EeatReportInline({ efUrl, clientSlug }: { efUrl: string; clientSlug: string }) {
+  const [html, setHtml] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    fetch(`${efUrl}/geobh-eeat-report?slug=${clientSlug}`)
+      .then((res) => res.text())
+      .then((text) => {
+        setHtml(text);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [efUrl, clientSlug]);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border p-8 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      </div>
+    );
+  }
+  if (!html) return null;
+
+  return (
+    <section className="bg-white rounded-2xl border overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <FileText className="w-5 h-5 text-blue-500" />
+          <h4 className="font-bold text-gray-900">EEAT 전체 리포트</h4>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `eeat-report-${clientSlug}.html`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition-colors"
+          >
+            다운로드
+          </button>
+          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t" style={{ height: "calc(100vh - 200px)" }}>
+          <iframe
+            srcDoc={html}
+            className="w-full h-full border-0"
+            title="EEAT Report"
+            sandbox="allow-same-origin"
+          />
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -521,20 +594,26 @@ export default function ClientPage() {
                   </div>
                 </button>
 
-                {/* EEAT Report (future) */}
+                {/* EEAT Report */}
                 {sc && (
-                  <div className="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-5 text-left opacity-60">
+                  <button
+                    onClick={() => setActiveSection("analysis")}
+                    className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
+                  >
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-lg">📋</span>
-                          <p className="font-bold text-gray-500">EEAT 분석 리포트</p>
+                          <p className="font-bold text-gray-900">EEAT 분석 리포트</p>
                         </div>
+                        <p className="text-sm text-gray-500">
+                          {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
+                        </p>
                         <p className="text-xs text-gray-400 mt-1">E-E-A-T 스코어카드 + 액션플랜</p>
                       </div>
-                      <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded">준비중</span>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
                     </div>
-                  </div>
+                  </button>
                 )}
               </div>
             </section>
@@ -671,7 +750,7 @@ export default function ClientPage() {
               </section>
             )}
 
-            {/* Compliance */}
+            {/* Compliance with Drilldown */}
             {eeatData?.compliance && (
               <section className="bg-white rounded-2xl border p-5">
                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -691,11 +770,78 @@ export default function ClientPage() {
                     <p className="text-xs text-green-600">Low Risk</p>
                   </div>
                 </div>
-                <p className="text-sm text-gray-500">
-                  총 {eeatData.compliance.total_items}건의 컴플라이언스 항목이 검출되었습니다. 상세 내용은 AI 어시스턴트에게 질문하세요.
-                </p>
+                {eeatData.compliance.violations && eeatData.compliance.violations.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {eeatData.compliance.violations.map((v: any, i: number) => (
+                      <details key={i} className="group border rounded-lg overflow-hidden">
+                        <summary className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold text-white ${
+                            v.risk_level === "high" ? "bg-red-500" : v.risk_level === "medium" ? "bg-amber-500" : "bg-blue-500"
+                          }`}>{v.risk_level === "high" ? "HIGH" : v.risk_level === "medium" ? "MED" : "LOW"}</span>
+                          <span className="text-sm text-gray-800 flex-1 truncate">{v.text || v.before}</span>
+                          <ChevronDown className="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" />
+                        </summary>
+                        <div className="px-4 py-3 bg-gray-50 border-t text-sm space-y-2">
+                          <div className="grid grid-cols-[80px_1fr] gap-y-2">
+                            <span className="text-gray-500 font-medium">사유</span>
+                            <span className="text-gray-700">{v.reason}</span>
+                            <span className="text-gray-500 font-medium">위반 문구</span>
+                            <span className="text-red-600">{v.text || v.before}</span>
+                            <span className="text-gray-500 font-medium">수정안</span>
+                            <span className="text-green-700">{v.after || "-"}</span>
+                            <span className="text-gray-500 font-medium">조항</span>
+                            <code className="text-gray-600 text-xs bg-gray-100 px-1.5 py-0.5 rounded w-fit">{v.violation_clause || "-"}</code>
+                          </div>
+                          {v.url && (
+                            <p className="text-xs text-gray-400 truncate pt-1 border-t">
+                              {v.url.replace(/https?:\/\/(www\.)?/, "")}
+                            </p>
+                          )}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
+
+            {/* Action Plan */}
+            {eeatData?.analysis?.action_plan && (
+              <section className="bg-white rounded-2xl border p-5">
+                <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-blue-500" /> 개선 액션플랜
+                </h4>
+                {(eeatData?.analysis?.action_plan?.strengths?.length ?? 0) > 0 && (
+                  <div className="mb-4 p-3 bg-green-50 rounded-xl">
+                    <p className="text-xs font-bold text-green-700 mb-1">강점</p>
+                    <p className="text-sm text-green-800">{eeatData?.analysis?.action_plan?.strengths?.join(" · ")}</p>
+                  </div>
+                )}
+                {(eeatData?.analysis?.action_plan?.weaknesses?.length ?? 0) > 0 && (
+                  <div className="mb-4 p-3 bg-red-50 rounded-xl">
+                    <p className="text-xs font-bold text-red-700 mb-1">약점</p>
+                    <p className="text-sm text-red-800">{eeatData?.analysis?.action_plan?.weaknesses?.join(" · ")}</p>
+                  </div>
+                )}
+                {eeatData?.analysis?.action_plan?.priority_actions?.map((a: any, i: number) => (
+                  <div key={i} className="flex items-start gap-3 p-3 border rounded-lg mb-2 last:mb-0">
+                    <span className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {a.priority || i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{a.action}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                        <span>Effort: <span className={`font-bold ${a.effort === "low" ? "text-green-600" : a.effort === "medium" ? "text-amber-600" : "text-red-600"}`}>{a.effort}</span></span>
+                        {a.eeat_impact && <span>Impact: <span className="font-bold text-blue-600">{a.eeat_impact}</span></span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {/* EEAT Full Report (inline) */}
+            <EeatReportInline efUrl={BAWEE_EF} clientSlug={client} />
           </div>
         )}
 
