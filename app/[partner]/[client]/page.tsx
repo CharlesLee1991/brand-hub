@@ -646,56 +646,35 @@ export default function ClientPage() {
 
         {/* ──── CITATION MOAT TAB ──── */}
         {activeSection === "citation" && (
-          <div className="space-y-8">
-            {/* Moat Report CTA */}
-            <section
-              className="rounded-2xl p-8 text-white"
-              style={{ background: `linear-gradient(135deg, #1e293b, #334155)` }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-bold mb-2">🛡️ Citation Moat™ 리포트</h2>
-                  <p className="text-white/70 text-sm leading-relaxed">
-                    AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.<br />
-                    경쟁 소스 역추적, 인용 기회 발견, 벤치마크 비교까지 포함됩니다.
-                  </p>
-                </div>
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">🛡️ Citation Moat™ 리포트</h2>
+                <p className="text-sm text-gray-500 mt-1">AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.</p>
               </div>
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() =>
-                    window.open(
-                      `${BAWEE_EF}/geobh-moat-report?slug=${client}`,
-                      "_blank"
-                    )
-                  }
-                  className="px-5 py-2.5 bg-white text-gray-900 rounded-lg font-bold text-sm hover:bg-gray-100 transition-colors"
-                >
-                  📥 전체 리포트 열기
-                </button>
-                <button
-                  onClick={() =>
-                    window.open(
-                      `${BAWEE_EF}/geobh-moat-report?slug=${client}&format=json`,
-                      "_blank"
-                    )
-                  }
-                  className="px-5 py-2.5 bg-white/10 text-white rounded-lg text-sm hover:bg-white/20 transition-colors"
-                >
-                  JSON 보기
-                </button>
-              </div>
-            </section>
+              <button
+                onClick={() =>
+                  window.open(
+                    `${BAWEE_EF}/geobh-moat-report?slug=${client}`,
+                    "_blank"
+                  )
+                }
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                새 탭에서 열기
+              </button>
+            </div>
 
-            {/* Placeholder for inline citation data (P1) */}
-            <section className="bg-white rounded-xl border p-8 text-center">
-              <Award className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-              <h3 className="font-bold text-gray-400 mb-2">인라인 Citation 대시보드</h3>
-              <p className="text-sm text-gray-400">
-                Moat Score, 경쟁 소스 역추적, 쿼리 커버리지를 이 탭에서 직접 확인할 수 있도록 구현 예정입니다.
-              </p>
-              <p className="text-xs text-gray-300 mt-3">P1 · geobh-citation Edge Function</p>
-            </section>
+            {/* Inline Report */}
+            <div className="bg-white rounded-xl border overflow-hidden" style={{ height: "calc(100vh - 180px)" }}>
+              <iframe
+                src={`${BAWEE_EF}/geobh-moat-report?slug=${client}`}
+                className="w-full h-full border-0"
+                title="Citation Moat Report"
+              />
+            </div>
           </div>
         )}
 
