@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/demo", "/"];
+const PUBLIC_PATHS = ["/login", "/demo"];
 
 // Supabase project ref (from URL: https://nntuztaehnywdbttrajy.supabase.co)
 const SB_REF = "nntuztaehnywdbttrajy";
