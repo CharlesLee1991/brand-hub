@@ -43,8 +43,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadRole(): Promise<boolean> {
     try {
-      const { data, error } = await supabase.rpc("fn_bmp_get_my_role");
-      if (!error && data?.authorized) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.warn("[Auth] loadRole: no session token");
+        return false;
+      }
+
+      // 직접 fetch로 RPC 호출 (supabase.rpc 쿠키 동기화 이슈 우회)
+      const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/rest/v1/rpc/fn_bmp_get_my_role";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "apikey": process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+          "Authorization": "Bearer " + session.access_token,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+      const data = await res.json();
+      console.log("[Auth] loadRole:", data);
+
+      if (data?.authorized) {
         setRole(data.role);
         setPartnerSlug(data.partner_slug);
         setIsAdmin(data.is_admin);
@@ -59,7 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setClients([]);
         return false;
       }
-    } catch {
+    } catch (err) {
+      console.error("[Auth] loadRole error:", err);
       setRole(null);
       setPartnerSlug(null);
       setIsAdmin(false);

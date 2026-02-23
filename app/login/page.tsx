@@ -132,7 +132,10 @@ export default function LoginPage() {
                   접근 권한이 없습니다
                 </div>
                 <p className="text-amber-600 text-xs leading-relaxed">
-                  로그인은 성공했지만 Brand Hub 접근 권한이 할당되지 않았습니다. 관리자에게 문의하세요.
+                  로그인은 성공했지만 Brand Hub 접근 권한이 할당되지 않았습니다.
+                </p>
+                <p className="text-amber-500 text-[10px] mt-1 font-mono">
+                  {user?.email || "no-user"} | role={role || "null"}
                 </p>
                 <button
                   type="button"
