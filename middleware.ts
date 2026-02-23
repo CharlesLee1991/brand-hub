@@ -3,6 +3,10 @@ import { createServerClient } from "@supabase/ssr";
 
 const PUBLIC_PATHS = ["/login", "/demo", "/"];
 
+// Edge Runtime에서 env 접근 보장
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   const host = req.headers.get("host") || "";
@@ -32,12 +36,8 @@ export async function middleware(req: NextRequest) {
 
   const isPublic = PUBLIC_PATHS.includes(effectivePath);
 
-  // Public path without subdomain → pass
-  if (isPublic && !subdomain) {
-    return NextResponse.next();
-  }
+  if (isPublic && !subdomain) return NextResponse.next();
 
-  // Build response
   let response: NextResponse;
   if (subdomain && subdomain !== "www") {
     const rewriteUrl = req.nextUrl.clone();
@@ -47,24 +47,21 @@ export async function middleware(req: NextRequest) {
     response = NextResponse.next();
   }
 
-  // Public path → no auth needed
   if (isPublic) return response;
 
   // ── PROTECTED ROUTE ──
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    // env 미설정 → 로그인으로 (안전 기본값)
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("redirect", effectivePath);
+    return NextResponse.redirect(loginUrl);
+  }
+
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      // env 미설정 → 통과 (개발 모드)
-      return response;
-    }
-
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
+        getAll() { return req.cookies.getAll(); },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
@@ -83,8 +80,7 @@ export async function middleware(req: NextRequest) {
     }
 
     return response;
-  } catch (e) {
-    // Auth 실패 시 → 로그인으로
+  } catch {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirect", effectivePath);
