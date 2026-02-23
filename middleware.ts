@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 
 const PUBLIC_PATHS = ["/login", "/demo", "/"];
 
-// Edge Runtime에서 env 접근 보장
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+// Supabase project ref (from URL: https://nntuztaehnywdbttrajy.supabase.co)
+const SB_REF = "nntuztaehnywdbttrajy";
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   const host = req.headers.get("host") || "";
 
+  // Skip static files, API routes, Next.js internals
   if (
     url.pathname.startsWith("/_next") ||
     url.pathname.startsWith("/api") ||
@@ -34,10 +33,12 @@ export async function middleware(req: NextRequest) {
     effectivePath = "/" + subdomain + (url.pathname === "/" ? "" : url.pathname);
   }
 
+  // ── PUBLIC PATHS ──
   const isPublic = PUBLIC_PATHS.includes(effectivePath);
 
   if (isPublic && !subdomain) return NextResponse.next();
 
+  // Build response (rewrite for subdomain, next for regular)
   let response: NextResponse;
   if (subdomain && subdomain !== "www") {
     const rewriteUrl = req.nextUrl.clone();
@@ -49,43 +50,22 @@ export async function middleware(req: NextRequest) {
 
   if (isPublic) return response;
 
-  // ── PROTECTED ROUTE ──
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    // env 미설정 → 로그인으로 (안전 기본값)
+  // ── AUTH CHECK (cookie-based) ──
+  // Supabase stores auth in cookies prefixed with sb-{ref}-auth-token
+  // In @supabase/ssr, cookies may be chunked: sb-{ref}-auth-token.0, .1, etc.
+  const cookies = req.cookies.getAll();
+  const hasAuthCookie = cookies.some(
+    (c) => c.name.startsWith("sb-" + SB_REF + "-auth-token")
+  );
+
+  if (!hasAuthCookie) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirect", effectivePath);
     return NextResponse.redirect(loginUrl);
   }
 
-  try {
-    const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      cookies: {
-        getAll() { return req.cookies.getAll(); },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    });
-
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
-      const loginUrl = req.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      loginUrl.searchParams.set("redirect", effectivePath);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    return response;
-  } catch {
-    const loginUrl = req.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("redirect", effectivePath);
-    return NextResponse.redirect(loginUrl);
-  }
+  return response;
 }
 
 export const config = {
