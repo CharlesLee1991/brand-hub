@@ -1,8 +1,9 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
 import {
   ArrowLeft,
   Bot,
@@ -23,6 +24,7 @@ import {
   Star,
   MessageSquare,
   Wand2,
+  LogOut,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -300,6 +302,8 @@ function CitationMoatTab({ efUrl, clientSlug }: { efUrl: string; clientSlug: str
 /* ────── Main Page Component ────── */
 export default function ClientPage() {
   const { partner, client } = useParams() as { partner: string; client: string };
+  const router = useRouter();
+  const { user, loading: authLoading, canAccess, signOut, displayName, isAdmin } = useAuth();
 
   // Data states
   const [hubConfig, setHubConfig] = useState<HubConfig | null>(null);
@@ -423,10 +427,29 @@ export default function ClientPage() {
   };
 
   /* ── Loading state ── */
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  /* ── Auth check ── */
+  if (!user) {
+    router.replace("/login?redirect=/" + partner + "/" + client);
+    return null;
+  }
+
+  if (!canAccess(partner, client)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">403</h1>
+          <p className="text-gray-600 mb-2">접근 권한이 없습니다.</p>
+          <p className="text-sm text-gray-400 mb-6">이 고객사에 대한 열람 권한이 없습니다.</p>
+          <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-600 hover:underline text-sm">다른 계정으로 로그인</button>
+        </div>
       </div>
     );
   }
@@ -487,8 +510,15 @@ export default function ClientPage() {
               <span className="text-gray-600 font-medium">{eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}</span>
             </div>
             <h1 className="font-bold text-gray-900 truncate">
-              {eeatData?.analysis?.industry ? `${eeatData.analysis.industry} — ` : ""}{client}
+              {eeatData?.analysis?.industry ? eeatData.analysis.industry + " — " : ""}{client}
             </h1>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs text-gray-400 hidden sm:inline">{displayName || user?.email}</span>
+            {isAdmin && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">Admin</span>}
+            <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-gray-400 hover:text-gray-600" title="로그아웃">
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

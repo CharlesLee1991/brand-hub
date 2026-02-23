@@ -1,8 +1,9 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
 import {
   ArrowLeft,
   Loader2,
@@ -12,6 +13,7 @@ import {
   ChevronRight,
   ExternalLink,
   BarChart3,
+  LogOut,
 } from "lucide-react";
 
 interface PartnerConfig {
@@ -53,7 +55,9 @@ function moatGradeLabel(grade: string): string {
 
 export default function PartnerPage() {
   const params = useParams();
+  const router = useRouter();
   const partner = params.partner as string;
+  const { user, loading: authLoading, canAccess, signOut, displayName, isAdmin } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<PartnerConfig | null>(null);
@@ -80,10 +84,28 @@ export default function PartnerPage() {
     load();
   }, [partner]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    router.replace("/login?redirect=/" + partner);
+    return null;
+  }
+
+  if (!canAccess(partner)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">403</h1>
+          <p className="text-gray-600 mb-2">접근 권한이 없습니다.</p>
+          <p className="text-sm text-gray-400 mb-6">이 파트너 페이지에 대한 권한이 없습니다.</p>
+          <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-600 hover:underline text-sm">다른 계정으로 로그인</button>
+        </div>
       </div>
     );
   }
@@ -113,6 +135,13 @@ export default function PartnerPage() {
           </div>
           <span className="font-bold text-gray-900">{config.brand_name}</span>
           <span className="text-xs text-gray-400 ml-1">Brand Hub</span>
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-xs text-gray-400">{displayName || user?.email}</span>
+            {isAdmin && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">Admin</span>}
+            <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-gray-400 hover:text-gray-600" title="로그아웃">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </header>
 
