@@ -25,6 +25,9 @@ import {
   MessageSquare,
   Wand2,
   LogOut,
+  Activity,
+  Target,
+  Zap,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -299,6 +302,77 @@ function CitationMoatTab({ efUrl, clientSlug }: { efUrl: string; clientSlug: str
   );
 }
 
+/* ────── Generic Report Iframe Tab ────── */
+function ReportIframeTab({
+  efUrl,
+  clientSlug,
+  efSlug,
+  title,
+  subtitle,
+  icon,
+  downloadName,
+}: {
+  efUrl: string;
+  clientSlug: string;
+  efSlug: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  downloadName: string;
+}) {
+  const [html, setHtml] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(efUrl + "/" + efSlug + "?slug=" + clientSlug)
+      .then((res) => res.text())
+      .then((text) => { setHtml(text); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [efUrl, clientSlug, efSlug]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{icon} {title}</h2>
+          <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+        </div>
+        <button
+          onClick={() => {
+            if (!html) return;
+            const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = downloadName + "-" + clientSlug + ".html";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          disabled={!html}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5 disabled:opacity-40"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          다운로드
+        </button>
+      </div>
+      <div className="bg-white rounded-xl border overflow-hidden" style={{ height: "calc(100vh - 180px)" }}>
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+          </div>
+        ) : (
+          <iframe
+            srcDoc={html}
+            className="w-full h-full border-0"
+            title={title}
+            sandbox="allow-same-origin"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ────── Main Page Component ────── */
 export default function ClientPage() {
   const { partner, client } = useParams() as { partner: string; client: string };
@@ -314,7 +388,7 @@ export default function ClientPage() {
     client_analyses: { slug: string; url: string; industry: string; score: number; grade: string }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "contentlab" | "services" | "chat">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "compliance" | "competitor" | "contentlab" | "services" | "chat">("overview");
 
   // Chat states
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -328,6 +402,10 @@ export default function ClientPage() {
   const [somData, setSomData] = useState<any>(null);
   const [somLoading, setSomLoading] = useState(false);
   const [somFetched, setSomFetched] = useState(false);
+
+  // GEO Report (Authority Index)
+  const [geoReport, setGeoReport] = useState<any>(null);
+  const [geoReportLoading, setGeoReportLoading] = useState(true);
 
   // Content Lab state
   const [clSelectedType, setClSelectedType] = useState<string | null>(null);
@@ -355,6 +433,15 @@ export default function ClientPage() {
         const eeat = await eeatRes.json();
         if (eeat.success) {
           setEeatData(eeat);
+        }
+
+        // 3. GEO Report (Authority Index)
+        try {
+          const geoRes = await fetch(`${BAWEE_EF}/geobh-geo-report?slug=${client}&format=json`);
+          const geo = await geoRes.json();
+          if (geo.authority_index !== undefined) setGeoReport(geo);
+        } catch {} finally {
+          setGeoReportLoading(false);
         }
       } catch (err) {
         console.error("Load error:", err);
@@ -482,10 +569,12 @@ export default function ClientPage() {
   const sc = eeatData?.analysis?.scorecard;
 
   const tabs = [
-    { key: "overview", label: "개요", icon: TrendingUp },
+    { key: "overview", label: "종합 진단", icon: Activity },
     { key: "analysis", label: "EEAT 분석", icon: Shield },
     { key: "citation", label: "Citation Moat", icon: Award },
     { key: "som", label: "SoM 점유율", icon: BarChart3 },
+    { key: "compliance", label: "컴플라이언스", icon: AlertTriangle },
+    { key: "competitor", label: "경쟁사", icon: Target },
     { key: "contentlab", label: "콘텐츠 랩", icon: Wand2 },
     { key: "services", label: "서비스", icon: Award },
     { key: "chat", label: "AI 어시스턴트", icon: MessageSquare },
@@ -555,164 +644,196 @@ export default function ClientPage() {
 
       {/* ════ Content ════ */}
       <main className="max-w-5xl mx-auto px-4 py-8">
-        {/* ──── OVERVIEW TAB ──── */}
+        {/* ──── OVERVIEW TAB — Authority Index ──── */}
         {activeSection === "overview" && (
           <div className="space-y-8">
-            {/* Hero */}
-            <section
-              className="rounded-2xl p-8 text-white"
-              style={{ background: `linear-gradient(135deg, ${color}, ${color}dd)` }}
-            >
-              <h2 className="text-2xl font-bold mb-2">
-                {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
-              </h2>
-              <p className="text-white/80 leading-relaxed">
-                {eeatData?.analysis?.industry ? `${eeatData.analysis.industry} · ` : ""}
-                {hubConfig.brand_name} 담당 고객사
-              </p>
-            </section>
+            {/* Authority Index Hero */}
+            {geoReport ? (() => {
+              const ai = geoReport.authority_index;
+              const ag = geoReport.authority_grade;
+              const p = geoReport.pillars || {};
+              const gradeColor: Record<string, string> = { A: "#10b981", B: "#3b82f6", C: "#f59e0b", D: "#ef4444" };
+              const gc = gradeColor[ag] || "#3b82f6";
+              const gradeLabel: Record<string, string> = { A: "Strong Authority", B: "Growing", C: "Emerging", D: "Needs Work" };
+              return (
+                <>
+                  <section className="rounded-2xl overflow-hidden" style={{ background: `linear-gradient(135deg, ${gc}18, ${gc}08)` }}>
+                    <div className="p-8">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Activity className="w-5 h-5" style={{ color: gc }} />
+                        <span className="text-sm font-bold uppercase tracking-wider" style={{ color: gc }}>Authority Index™</span>
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-900 mb-1">
+                        {geoReport.brand_name || client} — 종합 GEO 진단
+                      </h2>
+                      <p className="text-sm text-gray-500">{geoReport.industry} · {geoReport.analysis_date}</p>
 
-            {/* EEAT Score Card */}
-            {sc && (
-              <section>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">E-E-A-T 분석 현황</h3>
-                <div
-                  className="bg-white rounded-xl border p-5 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => setActiveSection("analysis")}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-bold text-gray-900">
-                        {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-0.5">{eeatData?.analysis?.industry}</p>
+                      {/* Score Ring + Pillars */}
+                      <div className="mt-6 flex flex-col md:flex-row items-center gap-8">
+                        {/* Ring */}
+                        <div className="relative w-40 h-40 flex-shrink-0">
+                          <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                            <circle cx="60" cy="60" r="52" fill="none" stroke="#e5e7eb" strokeWidth="10" />
+                            <circle cx="60" cy="60" r="52" fill="none" stroke={gc} strokeWidth="10"
+                              strokeDasharray={`${(ai / 100) * 327} 327`} strokeLinecap="round" />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-4xl font-black" style={{ color: gc }}>{ai}</span>
+                            <span className="text-xs font-bold text-gray-500">{gradeLabel[ag] || ag}</span>
+                          </div>
+                        </div>
+
+                        {/* 5 Pillar Bars */}
+                        <div className="flex-1 w-full space-y-3">
+                          {[
+                            { key: "eeat", label: "E-E-A-T", score: p.eeat?.score, weight: "30%", clr: "#8b5cf6" },
+                            { key: "som", label: "SoM 점유율", score: p.som?.score || p.som?.share, weight: "25%", clr: "#3b82f6" },
+                            { key: "citation_moat", label: "Citation Moat", score: p.citation_moat?.score, weight: "25%", clr: "#10b981" },
+                            { key: "compliance", label: "컴플라이언스", score: p.compliance?.score, weight: "10%", clr: "#f59e0b" },
+                            { key: "competitive", label: "경쟁 우위", score: p.competitive?.self_share != null ? Math.round(p.competitive.self_share) : null, weight: "10%", clr: "#ef4444" },
+                          ].map((pill) => (
+                            <div key={pill.key} className="flex items-center gap-3">
+                              <span className="text-xs font-medium text-gray-500 w-24 shrink-0 text-right">{pill.label}</span>
+                              <div className="flex-1 bg-white/60 rounded-full h-2.5 overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pill.score ?? 0}%`, backgroundColor: pill.clr }} />
+                              </div>
+                              <span className="text-xs font-bold w-8 text-right" style={{ color: pill.clr }}>{pill.score ?? "—"}</span>
+                              <span className="text-[10px] text-gray-400 w-7">{pill.weight}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <div
-                      className="flex items-center justify-center w-12 h-12 rounded-xl text-white font-black text-xl"
-                      style={{ backgroundColor: sc.overall_grade === "A" ? "#10b981" : "#3b82f6" }}
-                    >
-                      {sc.overall_grade}
+                  </section>
+
+                  {/* 5 Pillar Cards → click to tab */}
+                  <section>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">5대 진단 필라</h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                      {[
+                        { tab: "analysis" as const, icon: "📋", label: "E-E-A-T", score: p.eeat?.score, grade: p.eeat?.grade, desc: "경험·전문·권위·신뢰", clr: "#8b5cf6" },
+                        { tab: "som" as const, icon: "📊", label: "SoM 점유율", score: p.som?.score || p.som?.share, grade: null, desc: `Top3 ${p.som?.top3_rate ?? 0}%`, clr: "#3b82f6" },
+                        { tab: "citation" as const, icon: "🛡️", label: "Citation Moat", score: p.citation_moat?.score, grade: p.citation_moat?.grade, desc: `인용률 ${p.citation_moat?.citation_rate ?? 0}%`, clr: "#10b981" },
+                        { tab: "compliance" as const, icon: "⚖️", label: "컴플라이언스", score: p.compliance?.score, grade: null, desc: `HIGH ${p.compliance?.high_risk ?? 0} · MED ${p.compliance?.medium_risk ?? 0}`, clr: "#f59e0b" },
+                        { tab: "competitor" as const, icon: "🎯", label: "경쟁사 벤치마크", score: p.competitive?.self_share != null ? Math.round(p.competitive.self_share) : null, grade: null, desc: p.competitive?.top_competitor ? `vs ${p.competitive.top_competitor.name}` : "경쟁사 비교", clr: "#ef4444" },
+                      ].map((card) => (
+                        <button
+                          key={card.tab}
+                          onClick={() => setActiveSection(card.tab)}
+                          className="bg-white rounded-xl border p-4 text-left hover:shadow-md hover:border-gray-300 transition-all group"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-lg">{card.icon}</span>
+                            {card.grade && (
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: card.clr }}>{card.grade}</span>
+                            )}
+                          </div>
+                          <p className="text-2xl font-black" style={{ color: card.clr }}>{card.score ?? "—"}</p>
+                          <p className="text-sm font-bold text-gray-900 mt-1">{card.label}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{card.desc}</p>
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${sc.overall_score}%`,
-                          backgroundColor: sc.overall_grade === "A" ? "#10b981" : "#3b82f6",
-                        }}
-                      />
+                  </section>
+
+                  {/* Competitor Mini */}
+                  {p.competitive?.top_competitor && (
+                    <section className="bg-white rounded-xl border p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-gray-900 flex items-center gap-2">
+                          <Target className="w-4 h-4 text-red-500" /> 주요 경쟁사
+                        </h4>
+                        <button onClick={() => setActiveSection("competitor")} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          상세 보기 <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-700">{geoReport.brand_name || client}</span>
+                            <span className="text-sm font-bold" style={{ color }}>{p.competitive.self_share}%</span>
+                          </div>
+                          <div className="bg-gray-100 rounded-full h-2.5">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(p.competitive.self_share, 100)}%`, backgroundColor: color }} />
+                          </div>
+                        </div>
+                        <span className="text-gray-300 text-lg font-light">vs</span>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-700">{p.competitive.top_competitor.name}</span>
+                            <span className="text-sm font-bold text-red-500">{p.competitive.top_competitor.share}%</span>
+                          </div>
+                          <div className="bg-gray-100 rounded-full h-2.5">
+                            <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.min(p.competitive.top_competitor.share, 100)}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* 6 Report Downloads */}
+                  <section>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">📥 진단 리포트</h3>
+                    <div className="grid md:grid-cols-3 gap-3">
+                      {[
+                        { tab: "overview" as const, icon: "🏆", label: "종합 GEO 진단", desc: "Authority Index™", ef: "geobh-geo-report" },
+                        { tab: "analysis" as const, icon: "📋", label: "EEAT 진단", desc: "스코어카드 + 액션플랜", ef: "geobh-eeat-report" },
+                        { tab: "citation" as const, icon: "🛡️", label: "Citation Moat™", desc: "AI 인용 신뢰도", ef: "geobh-moat-report" },
+                        { tab: "som" as const, icon: "📊", label: "SoM 점유율", desc: "AI 검색 점유율", ef: "geobh-som-report" },
+                        { tab: "compliance" as const, icon: "⚖️", label: "컴플라이언스", desc: "의료광고법 검증", ef: "geobh-compliance-report" },
+                        { tab: "competitor" as const, icon: "🎯", label: "경쟁사 벤치마크", desc: "경쟁사 비교 분석", ef: "geobh-competitor-report" },
+                      ].map((r) => (
+                        <div key={r.ef} className="bg-white rounded-xl border p-4 flex items-center gap-3 group hover:shadow-md transition-all">
+                          <span className="text-xl">{r.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-900">{r.label}</p>
+                            <p className="text-xs text-gray-400">{r.desc}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {r.tab !== "overview" && (
+                              <button onClick={() => setActiveSection(r.tab)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(BAWEE_EF + "/" + r.ef + "?slug=" + client);
+                                const text = await res.text();
+                                const blob = new Blob([text], { type: "text/html;charset=utf-8" });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = r.ef + "-" + client + ".html";
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <span className="text-sm font-bold text-gray-700">{sc.overall_score}/100</span>
-                  </div>
-                </div>
+                  </section>
+                </>
+              );
+            })() : geoReportLoading ? (
+              <div className="bg-white rounded-2xl border p-12 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+              </div>
+            ) : (
+              /* Fallback: no geo report, show basic info */
+              <section className="rounded-2xl p-8 text-white" style={{ background: `linear-gradient(135deg, ${color}, ${color}dd)` }}>
+                <h2 className="text-2xl font-bold mb-2">
+                  {eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}
+                </h2>
+                <p className="text-white/80">
+                  {eeatData?.analysis?.industry ? eeatData.analysis.industry + " · " : ""}{hubConfig.brand_name} 담당 고객사
+                </p>
+                <p className="text-white/60 text-sm mt-2">종합 GEO 진단 데이터를 준비 중입니다.</p>
               </section>
             )}
-
-            {/* Quick Stats */}
-            {sc && eeatData?.compliance && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  {
-                    label: "분석 페이지",
-                    value: `${eeatData.page_scores.length}개`,
-                    icon: FileText,
-                    iconColor: "#6366f1",
-                  },
-                  { label: "EEAT 등급", value: sc.overall_grade, icon: Award, iconColor: color },
-                  {
-                    label: "컴플라이언스",
-                    value: `위반 ${eeatData.compliance.total_items}건`,
-                    icon: Shield,
-                    iconColor: eeatData.compliance.high_risk > 0 ? "#ef4444" : "#10b981",
-                  },
-                  { label: "업종", value: eeatData.analysis.industry, icon: Users, iconColor: "#8b5cf6" },
-                ].map((stat, i) => (
-                  <div key={i} className="bg-white rounded-xl border p-4 text-center">
-                    <stat.icon className="w-6 h-6 mx-auto mb-2" style={{ color: stat.iconColor }} />
-                    <p className="text-xl font-bold text-gray-900">{stat.value}</p>
-                    <p className="text-xs text-gray-500">{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Report Downloads */}
-            <section>
-              <h3 className="text-lg font-bold text-gray-900 mb-4">📥 진단 리포트</h3>
-              <div className="grid md:grid-cols-4 gap-4">
-                {/* Citation Moat Report */}
-                <button
-                  onClick={() => setActiveSection("citation")}
-                  className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg">🛡️</span>
-                        <p className="font-bold text-gray-900">Citation Moat™</p>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">AI 인용 신뢰도</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
-                  </div>
-                </button>
-
-                {/* EEAT Report */}
-                {sc && (
-                  <button
-                    onClick={() => setActiveSection("analysis")}
-                    className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-lg">📋</span>
-                          <p className="font-bold text-gray-900">EEAT 분석</p>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-1">스코어카드 + 액션플랜</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
-                    </div>
-                  </button>
-                )}
-
-                {/* SoM Report */}
-                <button
-                  onClick={() => setActiveSection("som")}
-                  className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg">📊</span>
-                        <p className="font-bold text-gray-900">SoM 점유율</p>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">AI 검색 점유율</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
-                  </div>
-                </button>
-
-                {/* Content Lab */}
-                <button
-                  onClick={() => setActiveSection("contentlab")}
-                  className="bg-white rounded-xl border p-5 text-left hover:shadow-md hover:border-gray-300 transition-all group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg">✨</span>
-                        <p className="font-bold text-gray-900">콘텐츠 랩</p>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">AI 콘텐츠 생성</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors mt-1" />
-                  </div>
-                </button>
-              </div>
-            </section>
           </div>
         )}
 
@@ -1062,6 +1183,32 @@ export default function ClientPage() {
               );
             })()}
           </div>
+        )}
+
+        {/* ──── COMPLIANCE TAB ──── */}
+        {activeSection === "compliance" && (
+          <ReportIframeTab
+            efUrl={BAWEE_EF}
+            clientSlug={client}
+            efSlug="geobh-compliance-report"
+            title="컴플라이언스 리포트"
+            subtitle="의료광고법 등 규제 준수 현황을 자동으로 검증합니다."
+            icon="⚖️"
+            downloadName="compliance-report"
+          />
+        )}
+
+        {/* ──── COMPETITOR TAB ──── */}
+        {activeSection === "competitor" && (
+          <ReportIframeTab
+            efUrl={BAWEE_EF}
+            clientSlug={client}
+            efSlug="geobh-competitor-report"
+            title="경쟁사 벤치마크 리포트"
+            subtitle="AI 검색엔진 기준 경쟁사 대비 점유율과 언급 현황을 비교합니다."
+            icon="🎯"
+            downloadName="competitor-report"
+          />
         )}
 
         {/* ──── CONTENT LAB TAB ──── */}
