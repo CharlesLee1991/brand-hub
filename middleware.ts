@@ -30,6 +30,15 @@ export function middleware(req: NextRequest) {
 
   let effectivePath = url.pathname;
   if (subdomain && subdomain !== "www") {
+    // /login은 서브도메인이어도 /login으로 유지 (partner 쿼리 추가)
+    if (url.pathname === "/login") {
+      const loginUrl = req.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      if (!loginUrl.searchParams.has("partner")) {
+        loginUrl.searchParams.set("partner", subdomain);
+      }
+      return NextResponse.rewrite(loginUrl);
+    }
     effectivePath = "/" + subdomain + (url.pathname === "/" ? "" : url.pathname);
   }
 
@@ -62,6 +71,9 @@ export function middleware(req: NextRequest) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirect", effectivePath);
+    if (subdomain && subdomain !== "www") {
+      loginUrl.searchParams.set("partner", subdomain);
+    }
     return NextResponse.redirect(loginUrl);
   }
 

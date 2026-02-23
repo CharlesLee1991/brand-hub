@@ -13,29 +13,52 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
   const [noRole, setNoRole] = useState(false);
+
+  // 파트너 모드 감지: 서브도메인 또는 ?partner= 쿼리
+  const [partnerMode, setPartnerMode] = useState<string | null>(null);
+
+  useEffect(() => {
+    // 1) 쿼리 파라미터에서 partner 확인
+    const params = new URLSearchParams(window.location.search);
+    const qp = params.get("partner");
+    if (qp) { setPartnerMode(qp); return; }
+
+    // 2) 서브도메인에서 partner 추출
+    const host = window.location.hostname;
+    const bases = ["bmp.ai", "brand-hub-six.vercel.app"];
+    for (const base of bases) {
+      if (host.endsWith("." + base)) {
+        const sub = host.replace("." + base, "").split(".").pop();
+        if (sub && sub !== "www") { setPartnerMode(sub); return; }
+      }
+    }
+    // 메인 도메인 → admin 모드 (partnerMode = null)
+  }, []);
+
+  const PARTNER_NAMES: Record<string, string> = {
+    hahmshout: "함샤우트글로벌",
+    mplanit: "엠플랫잇",
+    frameout: "프레임아웃",
+    mprd: "mprd",
+  };
 
   // 이미 로그인 → 적절한 페이지로 리다이렉트
   useEffect(() => {
-    if (!loading && user) {
-      if (role) {
-        const params = new URLSearchParams(window.location.search);
-        const redirect = params.get("redirect");
-        if (redirect) {
-          router.replace(redirect);
-        } else if (isAdmin) {
-          router.replace("/");
-        } else if (partnerSlug) {
-          router.replace("/" + partnerSlug);
-        }
-      } else {
-        // 로그인 됐지만 역할 미할당 → 안내
-        setNoRole(true);
-        setSubmitting(false);
+    if (!loading && user && role) {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect");
+      if (redirect) {
+        router.replace(redirect);
+      } else if (partnerMode && partnerSlug === partnerMode) {
+        router.replace("/" + partnerMode);
+      } else if (isAdmin) {
+        router.replace("/");
+      } else if (partnerSlug) {
+        router.replace("/" + partnerSlug);
       }
     }
-  }, [loading, user, role, isAdmin, partnerSlug]);
+  }, [loading, user, role, isAdmin, partnerSlug, partnerMode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,6 +67,13 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
+      // admin 모드: bizspring.co.kr 이메일만 허용
+      if (!partnerMode && !email.endsWith("@bizspring.co.kr")) {
+        setError("관리자 계정(@bizspring.co.kr)만 로그인할 수 있습니다.");
+        setSubmitting(false);
+        return;
+      }
+
       const result = await signIn(email, password);
       if (result.error) {
         setError(result.error.includes("Invalid login")
@@ -59,11 +89,17 @@ export default function LoginPage() {
         return;
       }
 
-      // 성공 → 직접 redirect (useEffect 대기 없이)
+      // 파트너 모드에서 다른 파트너 계정 차단 (admin은 어디서나 OK)
+      // signIn 후 auth-context에 role/partnerSlug가 set되었으므로 직접 체크 불가
+      // → window.location으로 이동 후 페이지 레벨에서 canAccess가 체크함
+
+      // 성공 → redirect
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get("redirect");
       if (redirect) {
         window.location.href = redirect;
+      } else if (partnerMode) {
+        window.location.href = "/" + partnerMode;
       } else {
         window.location.href = "/";
       }
@@ -90,7 +126,11 @@ export default function LoginPage() {
             <span className="text-2xl font-black text-white">B</span>
           </div>
           <h1 className="text-2xl font-bold text-white">Brand Hub</h1>
-          <p className="text-sm text-gray-400 mt-1">파트너 전용 GEO 분석 플랫폼</p>
+          <p className="text-sm text-gray-400 mt-1">
+            {partnerMode
+              ? (PARTNER_NAMES[partnerMode] || partnerMode) + " 전용"
+              : "관리자 로그인"}
+          </p>
         </div>
 
         {/* Login Card */}
@@ -104,7 +144,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="partner@company.com"
+                  placeholder={partnerMode ? "name@company.com" : "admin@bizspring.co.kr"}
                   required
                   autoFocus
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
