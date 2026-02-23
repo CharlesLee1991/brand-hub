@@ -70,22 +70,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // SSR 또는 env 미설정 시 스킵
     if (typeof window === "undefined") { setLoading(false); return; }
 
-    // 초기 세션 확인
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadRole().finally(() => setLoading(false));
-      } else {
+    let mounted = true;
+
+    // 안전장치: 8초 후에도 로딩이면 강제 해제
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn("[Auth] Loading timeout - force release");
         setLoading(false);
       }
-    }).catch(() => setLoading(false));
+    }, 8000);
 
-    // 상태 변화 리스너
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setUser(session.user);
+        await loadRole();
+      } else {
+        setUser(null);
+      }
+      if (mounted) setLoading(false);
+    }).catch(() => {
+      if (mounted) setLoading(false);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!mounted) return;
         setUser(session?.user ?? null);
         if (session?.user) {
           await loadRole();
@@ -99,7 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   async function signIn(email: string, password: string) {

@@ -84,7 +84,7 @@ export default function PartnerPage() {
     load();
   }, [partner]);
 
-  if (loading || authLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -106,6 +106,14 @@ export default function PartnerPage() {
           <p className="text-sm text-gray-400 mb-6">이 파트너 페이지에 대한 권한이 없습니다.</p>
           <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-600 hover:underline text-sm">다른 계정으로 로그인</button>
         </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }

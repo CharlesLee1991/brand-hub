@@ -426,8 +426,8 @@ export default function ClientPage() {
     }
   };
 
-  /* ── Loading state ── */
-  if (loading || authLoading) {
+  /* ── Auth loading state ── */
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -450,6 +450,15 @@ export default function ClientPage() {
           <p className="text-sm text-gray-400 mb-6">이 고객사에 대한 열람 권한이 없습니다.</p>
           <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-600 hover:underline text-sm">다른 계정으로 로그인</button>
         </div>
+      </div>
+    );
+  }
+
+  /* ── Data loading ── */
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
