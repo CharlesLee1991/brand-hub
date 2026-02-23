@@ -43,25 +43,34 @@ export default function LoginPage() {
     setNoRole(false);
     setSubmitting(true);
 
-    const result = await signIn(email, password);
-    if (result.error) {
-      if (result.error.includes("Invalid login")) {
-        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
-      } else {
-        setError(result.error);
+    try {
+      const result = await signIn(email, password);
+      if (result.error) {
+        setError(result.error.includes("Invalid login")
+          ? "이메일 또는 비밀번호가 올바르지 않습니다."
+          : result.error);
+        setSubmitting(false);
+        return;
       }
-      setSubmitting(false);
-      return;
-    }
 
-    // 로그인 성공했지만 역할 없음
-    if (result.noRole) {
-      setNoRole(true);
-      setSubmitting(false);
-      return;
-    }
+      if (result.noRole) {
+        setNoRole(true);
+        setSubmitting(false);
+        return;
+      }
 
-    // 역할 있음 → useEffect에서 리다이렉트 처리
+      // 성공 → 직접 redirect (useEffect 대기 없이)
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect");
+      if (redirect) {
+        window.location.href = redirect;
+      } else {
+        window.location.href = "/";
+      }
+    } catch {
+      setError("로그인 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setSubmitting(false);
+    }
   }
 
   if (loading) {

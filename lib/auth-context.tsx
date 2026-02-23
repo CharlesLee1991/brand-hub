@@ -48,10 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         token = session?.access_token;
       }
-      if (!token) {
-        console.warn("[Auth] loadRole: no token");
-        return false;
-      }
+      if (!token) return false;
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
 
       const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/rest/v1/rpc/fn_bmp_get_my_role";
       const res = await fetch(url, {
@@ -62,7 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Content-Type": "application/json",
         },
         body: "{}",
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       const data = await res.json();
 
       if (data?.authorized) {
@@ -72,13 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setDisplayName(data.display_name);
         setClients(data.clients || []);
         return true;
-      } else {
-        setRole(null); setPartnerSlug(null); setIsAdmin(false);
-        setDisplayName(null); setClients([]);
-        return false;
       }
-    } catch (err) {
-      console.error("[Auth] loadRole error:", err);
+      setRole(null); setPartnerSlug(null); setIsAdmin(false);
+      setDisplayName(null); setClients([]);
+      return false;
+    } catch {
       setRole(null); setPartnerSlug(null); setIsAdmin(false);
       setDisplayName(null); setClients([]);
       return false;
