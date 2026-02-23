@@ -41,27 +41,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
 
-  async function loadRole(): Promise<boolean> {
+  async function loadRole(accessToken?: string): Promise<boolean> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        console.warn("[Auth] loadRole: no session token");
+      let token = accessToken;
+      if (!token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+      }
+      if (!token) {
+        console.warn("[Auth] loadRole: no token");
         return false;
       }
 
-      // 직접 fetch로 RPC 호출 (supabase.rpc 쿠키 동기화 이슈 우회)
       const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/rest/v1/rpc/fn_bmp_get_my_role";
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "apikey": process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-          "Authorization": "Bearer " + session.access_token,
+          "Authorization": "Bearer " + token,
           "Content-Type": "application/json",
         },
         body: "{}",
       });
       const data = await res.json();
-      console.log("[Auth] loadRole:", data);
 
       if (data?.authorized) {
         setRole(data.role);
@@ -71,20 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setClients(data.clients || []);
         return true;
       } else {
-        setRole(null);
-        setPartnerSlug(null);
-        setIsAdmin(false);
-        setDisplayName(null);
-        setClients([]);
+        setRole(null); setPartnerSlug(null); setIsAdmin(false);
+        setDisplayName(null); setClients([]);
         return false;
       }
     } catch (err) {
       console.error("[Auth] loadRole error:", err);
-      setRole(null);
-      setPartnerSlug(null);
-      setIsAdmin(false);
-      setDisplayName(null);
-      setClients([]);
+      setRole(null); setPartnerSlug(null); setIsAdmin(false);
+      setDisplayName(null); setClients([]);
       return false;
     }
   }
@@ -106,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (session?.user) {
         setUser(session.user);
-        await loadRole();
+        await loadRole(session.access_token);
       } else {
         setUser(null);
       }
@@ -120,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         setUser(session?.user ?? null);
         if (session?.user) {
-          await loadRole();
+          await loadRole(session.access_token);
         } else {
           setRole(null);
           setPartnerSlug(null);
@@ -139,10 +135,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
-    // 로그인 성공 → 역할 즉시 로드 (onAuthStateChange 대기 없이)
-    const hasRole = await loadRole();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message, noRole: false };
+    // 로그인 결과에서 토큰 직접 추출 → getSession 대기 없이 즉시 RPC 호출
+    setUser(data.session?.user ?? null);
+    const token = data.session?.access_token;
+    const hasRole = await loadRole(token);
     return { error: null, noRole: !hasRole };
   }
 
