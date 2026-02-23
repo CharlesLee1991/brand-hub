@@ -18,7 +18,7 @@ interface AuthState {
   displayName: string | null;
   clients: ClientAccess[];
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null; noRole?: boolean }>;
   signOut: () => Promise<void>;
   canAccess: (partner: string, client?: string) => boolean;
 }
@@ -26,7 +26,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState>({
   user: null, role: null, partnerSlug: null, isAdmin: false,
   displayName: null, clients: [], loading: true,
-  signIn: async () => ({ error: null }),
+  signIn: async () => ({ error: null, noRole: false }),
   signOut: async () => {},
   canAccess: () => false,
 });
@@ -41,20 +41,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
 
-  async function loadRole() {
-    const { data, error } = await supabase.rpc("fn_bmp_get_my_role");
-    if (!error && data?.authorized) {
-      setRole(data.role);
-      setPartnerSlug(data.partner_slug);
-      setIsAdmin(data.is_admin);
-      setDisplayName(data.display_name);
-      setClients(data.clients || []);
-    } else {
+  async function loadRole(): Promise<boolean> {
+    try {
+      const { data, error } = await supabase.rpc("fn_bmp_get_my_role");
+      if (!error && data?.authorized) {
+        setRole(data.role);
+        setPartnerSlug(data.partner_slug);
+        setIsAdmin(data.is_admin);
+        setDisplayName(data.display_name);
+        setClients(data.clients || []);
+        return true;
+      } else {
+        setRole(null);
+        setPartnerSlug(null);
+        setIsAdmin(false);
+        setDisplayName(null);
+        setClients([]);
+        return false;
+      }
+    } catch {
       setRole(null);
       setPartnerSlug(null);
       setIsAdmin(false);
       setDisplayName(null);
       setClients([]);
+      return false;
     }
   }
 
@@ -94,7 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
-    return { error: null };
+    // 로그인 성공 → 역할 즉시 로드 (onAuthStateChange 대기 없이)
+    const hasRole = await loadRole();
+    return { error: null, noRole: !hasRole };
   }
 
   async function signOut() {

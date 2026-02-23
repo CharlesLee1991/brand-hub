@@ -7,24 +7,32 @@ import { Loader2, Lock, Mail, AlertCircle, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading, signIn, isAdmin, partnerSlug, clients, role } = useAuth();
+  const { user, loading, signIn, signOut, isAdmin, partnerSlug, clients, role } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [noRole, setNoRole] = useState(false);
+
   // 이미 로그인 → 적절한 페이지로 리다이렉트
   useEffect(() => {
-    if (!loading && user && role) {
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get("redirect");
-      if (redirect) {
-        router.replace(redirect);
-      } else if (isAdmin) {
-        router.replace("/");
-      } else if (partnerSlug) {
-        router.replace("/" + partnerSlug);
+    if (!loading && user) {
+      if (role) {
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get("redirect");
+        if (redirect) {
+          router.replace(redirect);
+        } else if (isAdmin) {
+          router.replace("/");
+        } else if (partnerSlug) {
+          router.replace("/" + partnerSlug);
+        }
+      } else {
+        // 로그인 됐지만 역할 미할당 → 안내
+        setNoRole(true);
+        setSubmitting(false);
       }
     }
   }, [loading, user, role, isAdmin, partnerSlug]);
@@ -32,18 +40,28 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNoRole(false);
     setSubmitting(true);
 
-    const { error: err } = await signIn(email, password);
-    if (err) {
-      if (err.includes("Invalid login")) {
+    const result = await signIn(email, password);
+    if (result.error) {
+      if (result.error.includes("Invalid login")) {
         setError("이메일 또는 비밀번호가 올바르지 않습니다.");
       } else {
-        setError(err);
+        setError(result.error);
       }
       setSubmitting(false);
+      return;
     }
-    // 성공 시 onAuthStateChange → useEffect에서 리다이렉트
+
+    // 로그인 성공했지만 역할 없음
+    if (result.noRole) {
+      setNoRole(true);
+      setSubmitting(false);
+      return;
+    }
+
+    // 역할 있음 → useEffect에서 리다이렉트 처리
   }
 
   if (loading) {
@@ -104,6 +122,25 @@ export default function LoginPage() {
               <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {error}
+              </div>
+            )}
+
+            {noRole && (
+              <div className="text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-3">
+                <div className="flex items-center gap-2 text-amber-700 font-medium mb-1">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  접근 권한이 없습니다
+                </div>
+                <p className="text-amber-600 text-xs leading-relaxed">
+                  로그인은 성공했지만 Brand Hub 접근 권한이 할당되지 않았습니다. 관리자에게 문의하세요.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { signOut(); setNoRole(false); setError(null); }}
+                  className="mt-2 text-xs text-amber-700 underline hover:text-amber-900"
+                >
+                  다른 계정으로 로그인
+                </button>
               </div>
             )}
 
