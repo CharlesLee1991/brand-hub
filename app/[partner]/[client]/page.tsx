@@ -407,6 +407,16 @@ export default function ClientPage() {
   const [geoReport, setGeoReport] = useState<any>(null);
   const [geoReportLoading, setGeoReportLoading] = useState(true);
 
+  // KHub AI Recommendations
+  const [khubRecs, setKhubRecs] = useState<any>(null);
+  const [khubRecsLoading, setKhubRecsLoading] = useState(false);
+  const [khubRecsSection, setKhubRecsSection] = useState<string>("");
+
+  // Partner Memo
+  const [memoText, setMemoText] = useState("");
+  const [memoSaving, setMemoSaving] = useState(false);
+  const [memoSaved, setMemoSaved] = useState(false);
+
   // Content Lab state
   const [clSelectedType, setClSelectedType] = useState<string | null>(null);
   const [clSelectedLlm, setClSelectedLlm] = useState<string | null>(null);
@@ -471,6 +481,52 @@ export default function ClientPage() {
         .catch(() => { setSomFetched(true); setSomLoading(false); });
     }
   }, [activeSection, somFetched, client]);
+
+  /* ── KHub Recommendations — fetch when section changes ── */
+  const sectionMap: Record<string, string> = {
+    analysis: "eeat", citation: "citation", som: "som",
+    overview: "all", compliance: "all", competitor: "all",
+  };
+  useEffect(() => {
+    const sec = sectionMap[activeSection];
+    if (!sec || !client || khubRecsSection === activeSection) return;
+    setKhubRecsLoading(true);
+    fetch(`${BAWEE_EF}/geobh-khub-bridge/recommend?client=${client}&partner=${partner}&section=${sec}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setKhubRecs(data);
+        setKhubRecsSection(activeSection);
+      })
+      .catch(() => {})
+      .finally(() => setKhubRecsLoading(false));
+  }, [activeSection, client, partner]);
+
+  /* ── Partner Memo Save ── */
+  const handleMemoSave = async () => {
+    if (!memoText.trim() || memoSaving) return;
+    setMemoSaving(true);
+    setMemoSaved(false);
+    try {
+      const res = await fetch("https://bawee.app.n8n.cloud/webhook/phase3-memo-to-khub", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_slug: client,
+          client_name: eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client,
+          partner_slug: partner,
+          action_status: "in_progress",
+          note: memoText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setMemoSaved(true);
+        setMemoText("");
+        setTimeout(() => setMemoSaved(false), 3000);
+      }
+    } catch {}
+    setMemoSaving(false);
+  };
 
   /* ── Chat submit ── */
   const handleChat = async (query: string) => {
@@ -1391,6 +1447,94 @@ export default function ClientPage() {
             </div>
           );
         })()}
+
+        {/* ──── KHub AI 추천 가이드 + 파트너 메모 ──── */}
+        {["overview", "analysis", "citation", "som", "compliance", "competitor"].includes(activeSection) && (
+          <div className="mt-8 space-y-4">
+            {/* KHub Recommendations */}
+            <section className="bg-white rounded-2xl border overflow-hidden">
+              <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">📚</span>
+                  <h3 className="font-bold text-gray-900">AI 추천 가이드</h3>
+                  {khubRecs?.section && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                      {khubRecs.section === "all" ? "종합" : khubRecs.section.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                {khubRecs?.diagnosis?.grade && (
+                  <span className="text-xs text-gray-500">
+                    등급 {khubRecs.diagnosis.grade} · {khubRecs.diagnosis.overall_score ?? "—"}점
+                  </span>
+                )}
+              </div>
+              <div className="p-6">
+                {khubRecsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+                    <span className="ml-2 text-sm text-gray-400">가이드 검색 중...</span>
+                  </div>
+                ) : khubRecs?.recommendations?.length > 0 ? (
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {khubRecs.recommendations.map((rec: any, i: number) => (
+                      <div key={rec.id || i} className="p-4 rounded-xl border hover:shadow-md transition-all group cursor-pointer bg-gray-50/50">
+                        <div className="flex items-start gap-3">
+                          <span className="text-sm mt-0.5">
+                            {rec.project_code === "BH_COMMON" ? "📘" : rec.project_code === "GEO_COMMERCE" ? "🏪" : "📄"}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors truncate">
+                              {rec.title}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{rec.content_snippet}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{rec.project_code}</span>
+                              <span className="text-[10px] text-gray-400">{rec.relevance_reason}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-4">이 섹션에 대한 추천 가이드가 없습니다.</p>
+                )}
+              </div>
+            </section>
+
+            {/* Partner Memo */}
+            <section className="bg-white rounded-2xl border overflow-hidden">
+              <div className="px-6 py-4 border-b bg-gradient-to-r from-amber-50 to-orange-50 flex items-center gap-2">
+                <span className="text-lg">📝</span>
+                <h3 className="font-bold text-gray-900">파트너 메모</h3>
+                <span className="text-xs text-gray-400 ml-auto">이 고객에 대한 메모를 남기면 KHub에 자동 저장됩니다</span>
+              </div>
+              <div className="p-6">
+                <textarea
+                  className="w-full border rounded-xl p-4 text-sm resize-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none"
+                  rows={3}
+                  placeholder="파트너 메모를 입력하세요... (예: 이 고객사는 PR 우선 진행, 3월 런칭 예정)"
+                  value={memoText}
+                  onChange={(e) => setMemoText(e.target.value)}
+                />
+                <div className="flex items-center justify-between mt-3">
+                  <div className="text-xs text-gray-400">
+                    {memoSaved && <span className="text-green-600 font-medium">✅ KHub에 저장 완료!</span>}
+                  </div>
+                  <button
+                    onClick={handleMemoSave}
+                    disabled={!memoText.trim() || memoSaving}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-40"
+                    style={{ backgroundColor: color }}
+                  >
+                    {memoSaving ? "저장 중..." : "메모 저장"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
 
         {/* ──── SERVICES TAB ──── */}
         {activeSection === "services" && (
