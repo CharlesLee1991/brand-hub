@@ -28,6 +28,8 @@ import {
   Activity,
   Target,
   Zap,
+  Play,
+  RefreshCw,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -426,6 +428,35 @@ export default function ClientPage() {
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
+  // Analysis status & trigger
+  const [analysisStatus, setAnalysisStatus] = useState<any>(null);
+  const [triggerLoading, setTriggerLoading] = useState<string | null>(null);
+  const [triggerResult, setTriggerResult] = useState<{ type: string; success: boolean; message: string } | null>(null);
+
+  const triggerEEAT = async () => {
+    const url = analysisStatus?.brand?.site_domain;
+    if (!url) return;
+    setTriggerLoading("eeat"); setTriggerResult(null);
+    try {
+      const res = await fetch(`${BAWEE_EF}/geobh-api/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, slug: client, industry: analysisStatus?.brand?.industry }) });
+      const data = await res.json();
+      setTriggerResult({ type: "eeat", success: data.success, message: data.success ? "EEAT 분석이 시작되었습니다. 1~3분 후 새로고침하세요." : "분석 트리거 실패" });
+    } catch { setTriggerResult({ type: "eeat", success: false, message: "요청 실패" }); }
+    setTriggerLoading(null);
+  };
+
+  const triggerReport = async (target: string) => {
+    const site_domain = analysisStatus?.brand?.site_domain;
+    if (!site_domain) return;
+    setTriggerLoading(target); setTriggerResult(null);
+    try {
+      const res = await fetch(`${BAWEE_EF}/geobh-api/generate-report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site_domain, target, force_refresh: true }) });
+      const data = await res.json();
+      const labels: Record<string, string> = { citation: "Citation Moat", competitor: "경쟁사 벤치마크", report: "종합 리포트" };
+      setTriggerResult({ type: target, success: data.success, message: data.success ? `${labels[target] || target} 리포트 생성이 시작되었습니다. 잠시 후 새로고침하세요.` : "리포트 생성 실패" });
+    } catch { setTriggerResult({ type: target, success: false, message: "요청 실패" }); }
+    setTriggerLoading(null);
+  };
   /* ── Load hub config + EEAT data ── */
   useEffect(() => {
     async function loadData() {
@@ -453,6 +484,13 @@ export default function ClientPage() {
         } catch {} finally {
           setGeoReportLoading(false);
         }
+
+        // 4. Analysis status (for trigger buttons)
+        try {
+          const statusRes = await fetch(`${BAWEE_EF}/geobh-api/analysis-status?slug=${client}`);
+          const status = await statusRes.json();
+          if (status.success) setAnalysisStatus(status);
+        } catch {}
       } catch (err) {
         console.error("Load error:", err);
       } finally {
@@ -1118,9 +1156,44 @@ export default function ClientPage() {
           </div>
         )}
 
+        {/* ──── ANALYSIS TAB — Empty State ──── */}
+        {activeSection === "analysis" && !sc && (
+          <div className="bg-white rounded-2xl border p-12 text-center">
+            <Shield className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-700 mb-2">EEAT 분석이 아직 실행되지 않았습니다</h3>
+            <p className="text-sm text-gray-400 mb-6">사이트를 크롤링하여 E-E-A-T(경험·전문·권위·신뢰) 점수를 산출합니다.<br />약 1~3분 소요됩니다.</p>
+            {triggerResult?.type === "eeat" && (
+              <div className={`mb-4 px-4 py-2 rounded-lg text-sm inline-block ${triggerResult.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{triggerResult.message}</div>
+            )}
+            <button onClick={triggerEEAT} disabled={triggerLoading === "eeat" || !analysisStatus?.brand?.site_domain}
+              className="px-6 py-3 rounded-xl text-white font-medium transition-all hover:shadow-lg disabled:opacity-50 inline-flex items-center gap-2"
+              style={{ backgroundColor: color }}>
+              {triggerLoading === "eeat" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              EEAT 분석 실행
+            </button>
+            {!analysisStatus?.brand?.site_domain && (
+              <p className="text-xs text-gray-400 mt-3">브랜드 설정(site_domain)이 등록되지 않았습니다. 관리자에게 문의하세요.</p>
+            )}
+          </div>
+        )}
+
         {/* ──── CITATION MOAT TAB ──── */}
         {activeSection === "citation" && (
-          <CitationMoatTab efUrl={BAWEE_EF} clientSlug={client} />
+          <div className="space-y-4">
+            {isAdmin && (
+              <div className="flex justify-end">
+                {triggerResult?.type === "citation" && (
+                  <span className={`mr-3 text-sm px-3 py-1.5 rounded-lg ${triggerResult.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{triggerResult.message}</span>
+                )}
+                <button onClick={() => triggerReport("citation")} disabled={triggerLoading === "citation"}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5 disabled:opacity-50">
+                  {triggerLoading === "citation" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  리포트 재생성
+                </button>
+              </div>
+            )}
+            <CitationMoatTab efUrl={BAWEE_EF} clientSlug={client} />
+          </div>
         )}
 
         {/* ──── SOM TAB ──── */}
@@ -1135,7 +1208,13 @@ export default function ClientPage() {
               <div className="bg-white rounded-2xl border p-12 text-center">
                 <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 font-medium">SoM 분석 데이터가 아직 없습니다</p>
-                <p className="text-sm text-gray-400 mt-1">AI 검색 점유율 분석이 완료되면 여기에 표시됩니다</p>
+                <p className="text-sm text-gray-400 mt-1">GEOcare.AI에서 SoM 분석을 실행하면 AI 검색 점유율 데이터가 여기에 표시됩니다.</p>
+                <a href="https://geocare.ai" target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-4 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:shadow-lg"
+                  style={{ backgroundColor: color }}>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  GEOcare.AI에서 SoM 분석 실행
+                </a>
               </div>
             )}
             {!somLoading && somData?.latest && (() => {
@@ -1243,28 +1322,54 @@ export default function ClientPage() {
 
         {/* ──── COMPLIANCE TAB ──── */}
         {activeSection === "compliance" && (
-          <ReportIframeTab
-            efUrl={BAWEE_EF}
-            clientSlug={client}
-            efSlug="geobh-compliance-report"
-            title="컴플라이언스 리포트"
-            subtitle="의료광고법 등 규제 준수 현황을 자동으로 검증합니다."
-            icon="⚖️"
-            downloadName="compliance-report"
-          />
+          <div className="space-y-4">
+            {!sc && isAdmin && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800">EEAT 분석이 먼저 필요합니다</p>
+                  <p className="text-xs text-amber-600">컴플라이언스 검증은 EEAT 분석 결과를 기반으로 수행됩니다.</p>
+                </div>
+                <button onClick={() => { setActiveSection("analysis"); }} className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-sm hover:bg-amber-200">EEAT 탭으로 이동</button>
+              </div>
+            )}
+            <ReportIframeTab
+              efUrl={BAWEE_EF}
+              clientSlug={client}
+              efSlug="geobh-compliance-report"
+              title="컴플라이언스 리포트"
+              subtitle="의료광고법 등 규제 준수 현황을 자동으로 검증합니다."
+              icon="⚖️"
+              downloadName="compliance-report"
+            />
+          </div>
         )}
 
         {/* ──── COMPETITOR TAB ──── */}
         {activeSection === "competitor" && (
-          <ReportIframeTab
-            efUrl={BAWEE_EF}
-            clientSlug={client}
-            efSlug="geobh-competitor-report"
-            title="경쟁사 벤치마크 리포트"
-            subtitle="AI 검색엔진 기준 경쟁사 대비 점유율과 언급 현황을 비교합니다."
-            icon="🎯"
-            downloadName="competitor-report"
-          />
+          <div className="space-y-4">
+            {isAdmin && (
+              <div className="flex justify-end">
+                {triggerResult?.type === "competitor" && (
+                  <span className={`mr-3 text-sm px-3 py-1.5 rounded-lg ${triggerResult.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{triggerResult.message}</span>
+                )}
+                <button onClick={() => triggerReport("competitor")} disabled={triggerLoading === "competitor"}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5 disabled:opacity-50">
+                  {triggerLoading === "competitor" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  리포트 재생성
+                </button>
+              </div>
+            )}
+            <ReportIframeTab
+              efUrl={BAWEE_EF}
+              clientSlug={client}
+              efSlug="geobh-competitor-report"
+              title="경쟁사 벤치마크 리포트"
+              subtitle="AI 검색엔진 기준 경쟁사 대비 점유율과 언급 현황을 비교합니다."
+              icon="🎯"
+              downloadName="competitor-report"
+            />
+          </div>
         )}
 
         {/* ──── CONTENT LAB TAB ──── */}
