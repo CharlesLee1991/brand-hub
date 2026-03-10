@@ -60,6 +60,13 @@ export default function PartnerPage() {
   const { user, loading: authLoading, canAccess, signOut, displayName, isAdmin } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  const [isSubdomain, setIsSubdomain] = useState(false);
+
+  useEffect(() => {
+    const host = window.location.hostname;
+    const isSub = (host.endsWith('.bmp.ai') || host.endsWith('.vercel.app')) && host.split('.').length > 2;
+    setIsSubdomain(isSub);
+  }, []);
   const [config, setConfig] = useState<PartnerConfig | null>(null);
   const [clients, setClients] = useState<ClientInfo[]>([]);
   const [hubType, setHubType] = useState<string>("");
@@ -196,7 +203,7 @@ export default function PartnerPage() {
                 {clients.map((client) => (
                   <Link
                     key={client.slug}
-                    href={`/${partner}/${client.slug}`}
+                    href={isSubdomain ? `/${client.slug}` : `/${partner}/${client.slug}`}
                     className="bg-white rounded-xl border p-5 hover:shadow-lg hover:border-gray-300 transition-all group block"
                   >
                     {/* Top row: name + industry */}
@@ -289,3 +296,4 @@ export default function PartnerPage() {
     </div>
   );
 }
+
