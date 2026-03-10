@@ -383,6 +383,7 @@ export default function ClientPage() {
 
   // Data states
   const [hubConfig, setHubConfig] = useState<HubConfig | null>(null);
+  const [isSubdomain, setIsSubdomain] = useState(false);
   const [eeatData, setEeatData] = useState<{
     analysis: EEATAnalysis;
     page_scores: PageScore[];
@@ -457,6 +458,13 @@ export default function ClientPage() {
     } catch { setTriggerResult({ type: target, success: false, message: "요청 실패" }); }
     setTriggerLoading(null);
   };
+  /* ── Subdomain detection ── */
+  useEffect(() => {
+    const host = window.location.hostname;
+    const isSub = (host.endsWith('.bmp.ai') || host.endsWith('.vercel.app')) && host.split('.').length > 2;
+    setIsSubdomain(isSub);
+  }, []);
+
   /* ── Load hub config + EEAT data ── */
   useEffect(() => {
     async function loadData() {
@@ -686,7 +694,7 @@ export default function ClientPage() {
       {/* ════ Header ════ */}
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4">
-          <Link href={`/${partner}`} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <Link href={isSubdomain ? "/" : `/${partner}`} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </Link>
           <div
