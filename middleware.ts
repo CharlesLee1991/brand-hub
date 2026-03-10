@@ -39,7 +39,12 @@ export function middleware(req: NextRequest) {
       }
       return NextResponse.rewrite(loginUrl);
     }
-    effectivePath = "/" + subdomain + (url.pathname === "/" ? "" : url.pathname);
+    // FIX: 이미 pathname이 /subdomain으로 시작하면 중복 prefix 추가하지 않음
+    if (url.pathname.startsWith("/" + subdomain + "/") || url.pathname === "/" + subdomain) {
+      effectivePath = url.pathname;
+    } else {
+      effectivePath = "/" + subdomain + (url.pathname === "/" ? "" : url.pathname);
+    }
   }
 
   // ── PUBLIC PATHS ──
