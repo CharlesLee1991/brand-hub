@@ -769,17 +769,18 @@ export default function ClientPage() {
     setChatLoading(true);
 
     try {
-      const res = await fetch(`${BAWEE_EF}/khub-query`, {
+      // Build history from previous messages (for multi-turn)
+      const prevMsgs = messages.filter(m => !m.isLoading).map(m => ({ role: m.role, content: m.content }));
+      const res = await fetch(`${BAWEE_EF}/geobh-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_code: partner, query: query.trim(), include_sources: true }),
+        body: JSON.stringify({ slug: client, query: query.trim(), history: prevMsgs }),
       });
       const data = await res.json();
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: data.success ? data.answer : "죄송합니다. 답변을 생성하는 중 오류가 발생했습니다.",
-        sources: data.sources?.map((s: any) => ({ title: s.title, document_id: s.document_id })),
       };
       setMessages((prev) => prev.map((m) => (m.isLoading ? assistantMsg : m)));
     } catch {
@@ -861,12 +862,15 @@ export default function ClientPage() {
     { key: "chat", label: "AI 어시스턴트", icon: MessageSquare },
   ] as const;
 
+  const brandDomain = eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client;
   const suggestedQuestions = [
-    `${eeatData?.analysis?.url ? eeatData.analysis.url.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") : client} EEAT 점수는?`,
-    "PR-GEO 통합 서비스가 뭔가요?",
-    "GEO 최적화 방법 알려줘",
-    "경쟁사 대비 우리 브랜드 현황은?",
-  ];
+    sc ? `EEAT ${sc.overall_grade}등급인데, 어떻게 개선해야 해?` : `${brandDomain} EEAT 점수는?`,
+    somData?.latest ? `SoM ${somData.latest.overall_share}%에서 점유율을 높이려면?` : "AI 검색 점유율을 높이려면?",
+    "경쟁사 대비 우리 브랜드 강점과 약점은?",
+    "지금 당장 실행할 수 있는 GEO 액션 3가지",
+    sc?.authoritativeness?.score < 50 ? "권위성 점수가 낮은데 어떻게 올려?" : "콘텐츠 전략을 추천해줘",
+    "Schema.org 마크업 적용하면 효과가 있을까?",
+  ].filter(Boolean);
 
   return (
     <div className="min-h-screen bg-gray-50">
