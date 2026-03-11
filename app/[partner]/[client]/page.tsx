@@ -375,6 +375,83 @@ function ReportIframeTab({
   );
 }
 
+/* ────── AI Commentary Panel (3-LLM insights) ────── */
+function AiCommentaryPanel({
+  tab, slug, data, brandName, industry, color,
+}: {
+  tab: string; slug: string; data: any; brandName: string; industry: string; color: string;
+}) {
+  const [commentary, setCommentary] = useState<Record<string, string> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [activeLlm, setActiveLlm] = useState<"claude" | "gpt" | "gemini">("claude");
+  const [expanded, setExpanded] = useState(false);
+  const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
+
+  const llms = [
+    { key: "claude" as const, name: "Claude", clr: "#d97706", icon: "🟠" },
+    { key: "gpt" as const, name: "GPT-4o", clr: "#10a37f", icon: "🟢" },
+  ];
+
+  const fetchCommentary = async () => {
+    if (commentary) { setExpanded(true); return; }
+    setLoading(true); setExpanded(true);
+    try {
+      const res = await fetch(`${BAWEE_EF}/geobh-ai-commentary`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tab, slug, data, brand_name: brandName, industry }),
+      });
+      const d = await res.json();
+      if (d.success) setCommentary(d.commentary);
+    } catch {}
+    setLoading(false);
+  };
+
+  if (!expanded) {
+    return (
+      <button onClick={fetchCommentary} disabled={loading}
+        className="w-full bg-white border border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-gray-400 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 text-sm text-gray-500">
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+        {loading ? "AI 의견 생성 중..." : "🤖 AI 진단 의견 보기 — Claude · GPT-4o 비교"}
+      </button>
+    );
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border overflow-hidden">
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <div className="flex items-center gap-2">
+          <Bot className="w-5 h-5" style={{ color }} />
+          <h3 className="font-bold text-gray-900 text-sm">AI 진단 의견</h3>
+        </div>
+        <button onClick={() => setExpanded(false)} className="text-xs text-gray-400 hover:text-gray-600">접기</button>
+      </div>
+      <div className="flex gap-1 px-5 mb-3">
+        {llms.map(l => (
+          <button key={l.key} onClick={() => setActiveLlm(l.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeLlm === l.key ? "text-white" : "text-gray-500 bg-gray-100 hover:bg-gray-200"}`}
+            style={activeLlm === l.key ? { backgroundColor: l.clr } : {}}>
+            {l.icon} {l.name}
+          </button>
+        ))}
+      </div>
+      <div className="px-5 pb-5">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+            <span className="ml-2 text-sm text-gray-400">AI가 분석 중입니다...</span>
+          </div>
+        ) : commentary ? (
+          <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
+            <ReactMarkdown>{commentary[activeLlm] || "데이터 없음"}</ReactMarkdown>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-4">의견을 불러올 수 없습니다.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /* ────── Main Page Component ────── */
 export default function ClientPage() {
   const { partner, client } = useParams() as { partner: string; client: string };
@@ -938,6 +1015,12 @@ export default function ClientPage() {
                 <p className="text-white/60 text-sm mt-2">종합 GEO 진단 데이터를 준비 중입니다.</p>
               </section>
             )}
+
+            {/* AI Commentary — Overview */}
+            {(geoReport || eeatData) && (
+              <AiCommentaryPanel tab="overview" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+                data={{ authority_index: geoReport?.authority_index, authority_grade: geoReport?.authority_grade, pillars: geoReport?.pillars, eeat_score: sc?.overall_score, som_share: somData?.latest?.overall_share }} />
+            )}
           </div>
         )}
 
@@ -1163,6 +1246,10 @@ export default function ClientPage() {
 
             {/* EEAT Full Report (inline) */}
             <EeatReportInline efUrl={BAWEE_EF} clientSlug={client} />
+
+            {/* AI Commentary */}
+            <AiCommentaryPanel tab="analysis" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ overall_score: sc.overall_score, overall_grade: sc.overall_grade, experience: sc.experience.score, expertise: sc.expertise.score, authoritativeness: sc.authoritativeness.score, trustworthiness: sc.trustworthiness.score, strengths: eeatData?.analysis?.action_plan?.strengths, weaknesses: eeatData?.analysis?.action_plan?.weaknesses }} />
           </div>
         )}
 
@@ -1203,6 +1290,8 @@ export default function ClientPage() {
               </div>
             )}
             <CitationMoatTab efUrl={BAWEE_EF} clientSlug={client} />
+            <AiCommentaryPanel tab="citation" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ tab: "citation_moat", slug: client }} />
           </div>
         )}
 
@@ -1327,6 +1416,12 @@ export default function ClientPage() {
                 </>
               );
             })()}
+
+            {/* AI Commentary — SoM */}
+            {somData?.latest && (
+              <AiCommentaryPanel tab="som" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+                data={{ overall_share: somData.latest.overall_share, avg_rank: somData.latest.avg_rank, top3_rate: somData.latest.top3_rate, llm_shares: somData.llm_shares }} />
+            )}
           </div>
         )}
 
@@ -1352,6 +1447,8 @@ export default function ClientPage() {
               icon="⚖️"
               downloadName="compliance-report"
             />
+            <AiCommentaryPanel tab="compliance" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ tab: "compliance", slug: client, eeat_grade: sc?.overall_grade, trust_score: sc?.trustworthiness?.score }} />
           </div>
         )}
 
@@ -1379,6 +1476,8 @@ export default function ClientPage() {
               icon="🎯"
               downloadName="competitor-report"
             />
+            <AiCommentaryPanel tab="competitor" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ tab: "competitor", slug: client }} />
           </div>
         )}
 
