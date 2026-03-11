@@ -383,8 +383,10 @@ function AiCommentaryPanel({
 }) {
   const [commentary, setCommentary] = useState<Record<string, string> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeLlm, setActiveLlm] = useState<"claude" | "gpt" | "gemini">("claude");
-  const [expanded, setExpanded] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [activeLlm, setActiveLlm] = useState<"claude" | "gpt">("claude");
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
+  const [cached, setCached] = useState(false);
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
   const llms = [
@@ -392,60 +394,109 @@ function AiCommentaryPanel({
     { key: "gpt" as const, name: "GPT-4o", clr: "#10a37f", icon: "🟢" },
   ];
 
-  const fetchCommentary = async () => {
-    if (commentary) { setExpanded(true); return; }
-    setLoading(true); setExpanded(true);
+  // Auto-load cached on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${BAWEE_EF}/geobh-ai-commentary?slug=${slug}&tab=${tab}`);
+        const d = await res.json();
+        if (d.success && d.cached && d.commentary) {
+          setCommentary(d.commentary);
+          setCreatedAt(d.created_at);
+          setCached(true);
+        }
+      } catch {}
+      setInitialLoading(false);
+    })();
+  }, [slug, tab]);
+
+  const generate = async (force = false) => {
+    setLoading(true);
     try {
       const res = await fetch(`${BAWEE_EF}/geobh-ai-commentary`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tab, slug, data, brand_name: brandName, industry }),
+        body: JSON.stringify({ tab, slug, data, brand_name: brandName, industry, force }),
       });
       const d = await res.json();
-      if (d.success) setCommentary(d.commentary);
+      if (d.success) {
+        setCommentary(d.commentary);
+        setCreatedAt(d.created_at);
+        setCached(d.cached || false);
+      }
     } catch {}
     setLoading(false);
   };
 
-  if (!expanded) {
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}분 전`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}시간 전`;
+    return `${Math.floor(hrs / 24)}일 전`;
+  };
+
+  if (initialLoading) return null;
+
+  // No cached data — show generate button
+  if (!commentary) {
     return (
-      <button onClick={fetchCommentary} disabled={loading}
-        className="w-full bg-white border border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-gray-400 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 text-sm text-gray-500">
+      <button onClick={() => generate()} disabled={loading}
+        className="w-full border border-dashed border-gray-300 rounded-2xl p-5 text-center hover:border-gray-400 transition-all flex items-center justify-center gap-2.5 text-sm"
+        style={{ background: "linear-gradient(135deg, #fafaf9, #f5f3ff)", color: loading ? "#9ca3af" : "#6b7280" }}>
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-        {loading ? "AI 의견 생성 중..." : "🤖 AI 진단 의견 보기 — Claude · GPT-4o 비교"}
+        {loading ? "Claude · GPT-4o가 분석 중..." : "🤖 AI 진단 의견 생성 — Claude · GPT-4o 비교"}
       </button>
     );
   }
 
   return (
-    <section className="bg-white rounded-2xl border overflow-hidden">
+    <section className="rounded-2xl border overflow-hidden" style={{ background: "linear-gradient(135deg, #fefefe, #faf8ff)" }}>
+      {/* Header */}
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
         <div className="flex items-center gap-2">
-          <Bot className="w-5 h-5" style={{ color }} />
-          <h3 className="font-bold text-gray-900 text-sm">AI 진단 의견</h3>
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + "18" }}>
+            <Bot className="w-4 h-4" style={{ color }} />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900 text-sm">AI 진단 의견</h3>
+            {createdAt && <span className="text-[10px] text-gray-400">{timeAgo(createdAt)} {cached && "· 저장됨"}</span>}
+          </div>
         </div>
-        <button onClick={() => setExpanded(false)} className="text-xs text-gray-400 hover:text-gray-600">접기</button>
+        <button onClick={() => generate(true)} disabled={loading}
+          className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors">
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          재생성
+        </button>
       </div>
-      <div className="flex gap-1 px-5 mb-3">
+
+      {/* LLM Tabs */}
+      <div className="flex gap-1.5 px-5 mb-3">
         {llms.map(l => (
           <button key={l.key} onClick={() => setActiveLlm(l.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeLlm === l.key ? "text-white" : "text-gray-500 bg-gray-100 hover:bg-gray-200"}`}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${activeLlm === l.key ? "text-white shadow-sm" : "text-gray-500 bg-white border hover:bg-gray-50"}`}
             style={activeLlm === l.key ? { backgroundColor: l.clr } : {}}>
             {l.icon} {l.name}
           </button>
         ))}
       </div>
+
+      {/* Content — scrollable */}
       <div className="px-5 pb-5">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-            <span className="ml-2 text-sm text-gray-400">AI가 분석 중입니다...</span>
-          </div>
-        ) : commentary ? (
-          <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
-            <ReactMarkdown>{commentary[activeLlm] || "데이터 없음"}</ReactMarkdown>
+          <div className="flex flex-col items-center justify-center py-10">
+            <Loader2 className="w-7 h-7 animate-spin text-gray-300 mb-2" />
+            <span className="text-sm text-gray-400">AI가 분석 데이터를 해석 중입니다...</span>
           </div>
         ) : (
-          <p className="text-sm text-gray-400 text-center py-4">의견을 불러올 수 없습니다.</p>
+          <div className="max-h-[400px] overflow-y-auto pr-1 scrollbar-thin" style={{ scrollbarWidth: "thin", scrollbarColor: "#d4d4d8 transparent" }}>
+            <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed
+              prose-headings:text-gray-900 prose-headings:text-sm prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2
+              prose-li:text-gray-600 prose-li:text-[13px] prose-li:leading-relaxed
+              prose-strong:text-gray-900 prose-p:text-[13.5px]">
+              <ReactMarkdown>{commentary[activeLlm] || "데이터 없음"}</ReactMarkdown>
+            </div>
+          </div>
         )}
       </div>
     </section>
