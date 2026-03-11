@@ -868,7 +868,7 @@ export default function ClientPage() {
     somData?.latest ? `SoM ${somData.latest.overall_share}%에서 점유율을 높이려면?` : "AI 검색 점유율을 높이려면?",
     "경쟁사 대비 우리 브랜드 강점과 약점은?",
     "지금 당장 실행할 수 있는 GEO 액션 3가지",
-    sc?.authoritativeness?.score < 50 ? "권위성 점수가 낮은데 어떻게 올려?" : "콘텐츠 전략을 추천해줘",
+    sc?.authoritativeness?.score && sc.authoritativeness.score < 50 ? "권위성 점수가 낮은데 어떻게 올려?" : "콘텐츠 전략을 추천해줘",
     "Schema.org 마크업 적용하면 효과가 있을까?",
   ].filter(Boolean);
 
