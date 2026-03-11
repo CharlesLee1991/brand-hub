@@ -594,6 +594,10 @@ export default function ClientPage() {
   const [clGenLoading, setClGenLoading] = useState(false);
   const [clGenResult, setClGenResult] = useState<any>(null);
   const [clHistory, setClHistory] = useState<any[]>([]);
+  const [clMode, setClMode] = useState<"generate" | "improve">("improve");
+  const [clImproveResult, setClImproveResult] = useState<any>(null);
+  const [clImproveLoading, setClImproveLoading] = useState(false);
+  const [clImproveLlm, setClImproveLlm] = useState<"claude" | "gpt">("claude");
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
@@ -1607,14 +1611,134 @@ export default function ClientPage() {
             setClGenLoading(false);
           };
           return (
-            <div className="space-y-8">
-              {/* Header */}
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <Wand2 className="w-5 h-5" style={{ color }} /> 콘텐츠 랩
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">EEAT 분석 결과를 기반으로 AI가 콘텐츠를 생성합니다. 4개 LLM 비교 가능</p>
+            <div className="space-y-6">
+              {/* Header + Mode Switcher */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Wand2 className="w-5 h-5" style={{ color }} /> 콘텐츠 랩
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {clMode === "improve" ? "크롤링된 실제 페이지를 AI가 분석하여 개선안을 제시합니다" : "EEAT 분석 결과 기반 AI 콘텐츠 생성"}
+                  </p>
+                </div>
+                <div className="flex rounded-lg overflow-hidden border bg-white text-xs">
+                  <button onClick={() => setClMode("improve")}
+                    className={`px-3 py-1.5 font-semibold transition-all ${clMode === "improve" ? "text-white" : "text-gray-500"}`}
+                    style={clMode === "improve" ? { backgroundColor: color } : {}}>
+                    🔍 페이지 개선
+                  </button>
+                  <button onClick={() => setClMode("generate")}
+                    className={`px-3 py-1.5 font-semibold transition-all ${clMode === "generate" ? "text-white" : "text-gray-500"}`}
+                    style={clMode === "generate" ? { backgroundColor: color } : {}}>
+                    ✍️ 콘텐츠 생성
+                  </button>
+                </div>
               </div>
+
+              {/* ── PAGE IMPROVE MODE ── */}
+              {clMode === "improve" && (
+                <div className="space-y-4">
+                  {/* LLM Selection */}
+                  <div className="flex items-center gap-3">
+                    {([
+                      { key: "claude" as const, name: "Claude", sub: "E-E-A-T 구조 + Schema.org JSON-LD", clr: "#d97706" },
+                      { key: "gpt" as const, name: "GPT-4o", sub: "마케팅 카피 + CTA + 전환율 최적화", clr: "#10a37f" },
+                    ]).map(l => (
+                      <button key={l.key} onClick={() => setClImproveLlm(l.key)}
+                        className={`flex-1 p-3 rounded-xl border-2 text-left transition-all ${clImproveLlm === l.key ? "shadow-sm" : "border-gray-200 hover:border-gray-300"}`}
+                        style={clImproveLlm === l.key ? { borderColor: l.clr, backgroundColor: l.clr + "06" } : {}}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: l.clr }} />
+                          <span className="text-sm font-bold text-gray-900">{l.name}</span>
+                          {clImproveLlm === l.key && <span className="text-[10px] px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: l.clr }}>선택됨</span>}
+                        </div>
+                        <p className="text-[11px] text-gray-500">{l.sub}</p>
+                      </button>
+                    ))}
+                    <button onClick={async () => {
+                      setClImproveLoading(true); setClImproveResult(null);
+                      try {
+                        const r = await fetch(efBase + "/geobh-content-improve", {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ slug: client, llm: clImproveLlm, limit: 10 }),
+                        });
+                        setClImproveResult(await r.json());
+                      } catch {}
+                      setClImproveLoading(false);
+                    }} disabled={clImproveLoading}
+                      className="px-5 py-3 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 flex-shrink-0"
+                      style={{ backgroundColor: clImproveLlm === "claude" ? "#d97706" : "#10a37f" }}>
+                      {clImproveLoading ? "분석 중..." : "🚀 분석"}
+                    </button>
+                  </div>
+
+                  {/* Loading */}
+                  {clImproveLoading && (
+                    <div className="bg-white rounded-xl border p-8 flex flex-col items-center gap-3">
+                      <Loader2 className="w-6 h-6 animate-spin" style={{ color }} />
+                      <span className="text-sm text-gray-500">
+                        {clImproveLlm === "claude" ? "Claude가 E-E-A-T 구조와 Schema.org를 분석 중..." : "GPT-4o가 마케팅 카피와 전환율을 분석 중..."}
+                      </span>
+                      <span className="text-xs text-gray-400">최대 10개 페이지 · 약 30~60초 소요</span>
+                    </div>
+                  )}
+
+                  {/* Result */}
+                  {clImproveResult?.success && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: clImproveLlm === "claude" ? "#d97706" : "#10a37f" }} />
+                          <span className="text-sm font-bold">{clImproveResult.llm_name}</span>
+                          <span className="text-xs text-gray-400">{clImproveResult.llm_focus}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span>{clImproveResult.page_count}페이지</span>
+                          <span>{(clImproveResult.elapsed_ms / 1000).toFixed(1)}초</span>
+                          <button onClick={() => navigator.clipboard.writeText(clImproveResult.improvements)}
+                            className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-xl border overflow-hidden">
+                        <div className="max-h-[60vh] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                          <div className="p-5 text-[12.5px] text-gray-700 leading-relaxed
+                            [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-gray-900 [&_h1]:mt-6 [&_h1]:mb-3
+                            [&_h2]:text-sm [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:pb-1.5 [&_h2]:border-b [&_h2]:border-gray-100
+                            [&_h3]:text-[12.5px] [&_h3]:font-bold [&_h3]:text-gray-800 [&_h3]:mt-3 [&_h3]:mb-1
+                            [&_h4]:text-[12px] [&_h4]:font-semibold [&_h4]:text-gray-700 [&_h4]:mt-2
+                            [&_p]:my-1.5 [&_li]:text-[12px] [&_li]:leading-relaxed
+                            [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4
+                            [&_code]:text-[11px] [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded
+                            [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:my-3
+                            [&_strong]:text-gray-900">
+                            <ReactMarkdown>{clImproveResult.improvements}</ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Compare with other LLM */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">다른 AI 관점:</span>
+                        <button onClick={() => { setClImproveLlm(clImproveLlm === "claude" ? "gpt" : "claude"); }}
+                          className="text-xs px-3 py-1.5 rounded-lg border hover:shadow-sm flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: clImproveLlm === "claude" ? "#10a37f" : "#d97706" }} />
+                          {clImproveLlm === "claude" ? "GPT-4o 관점으로 분석" : "Claude 관점으로 분석"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {clImproveResult && !clImproveResult.success && (
+                    <div className="bg-red-50 rounded-xl border border-red-200 p-4">
+                      <p className="text-sm text-red-700">오류: {clImproveResult.error}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── CONTENT GENERATE MODE (existing) ── */}
+              {clMode === "generate" && (
+              <div className="space-y-8">
 
               {/* Content Type Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1751,6 +1875,8 @@ export default function ClientPage() {
                 </div>
               )}
             </div>
+            )} {/* close generate mode */}
+          </div>
           );
         })()}
 
