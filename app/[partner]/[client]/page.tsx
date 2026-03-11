@@ -426,20 +426,17 @@ function AiCommentaryPanel({
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
   const llms = [
-    { key: "claude" as const, name: "Claude", clr: "#d97706", icon: "🟠" },
-    { key: "gpt" as const, name: "GPT-4o", clr: "#10a37f", icon: "🟢" },
+    { key: "claude" as const, name: "Claude", sub: "Anthropic", clr: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+    { key: "gpt" as const, name: "GPT-4o", sub: "OpenAI", clr: "#10a37f", bg: "#ecfdf5", border: "#a7f3d0" },
   ];
 
-  // Auto-load cached on mount
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch(`${BAWEE_EF}/geobh-ai-commentary?slug=${slug}&tab=${tab}`);
         const d = await res.json();
         if (d.success && d.cached && d.commentary) {
-          setCommentary(d.commentary);
-          setCreatedAt(d.created_at);
-          setCached(true);
+          setCommentary(d.commentary); setCreatedAt(d.created_at); setCached(true);
         }
       } catch {}
       setInitialLoading(false);
@@ -454,86 +451,102 @@ function AiCommentaryPanel({
         body: JSON.stringify({ tab, slug, data, brand_name: brandName, industry, force }),
       });
       const d = await res.json();
-      if (d.success) {
-        setCommentary(d.commentary);
-        setCreatedAt(d.created_at);
-        setCached(d.cached || false);
-      }
+      if (d.success) { setCommentary(d.commentary); setCreatedAt(d.created_at); setCached(d.cached || false); }
     } catch {}
     setLoading(false);
   };
 
-  const timeAgo = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}분 전`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}시간 전`;
-    return `${Math.floor(hrs / 24)}일 전`;
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
   };
 
   if (initialLoading) return null;
 
-  // No cached data — show generate button
   if (!commentary) {
     return (
       <button onClick={() => generate()} disabled={loading}
-        className="w-full border border-dashed border-gray-300 rounded-2xl p-5 text-center hover:border-gray-400 transition-all flex items-center justify-center gap-2.5 text-sm"
-        style={{ background: "linear-gradient(135deg, #fafaf9, #f5f3ff)", color: loading ? "#9ca3af" : "#6b7280" }}>
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-        {loading ? "Claude · GPT-4o가 분석 중..." : "🤖 AI 진단 의견 생성 — Claude · GPT-4o 비교"}
+        className="w-full rounded-2xl p-6 text-center transition-all flex flex-col items-center gap-3 group border-2 border-dashed hover:border-solid"
+        style={{ borderColor: loading ? "#d1d5db" : color + "40", background: `linear-gradient(135deg, ${color}06, ${color}03)` }}>
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: color + "12" }}>
+          {loading ? <Loader2 className="w-6 h-6 animate-spin" style={{ color }} /> : <Bot className="w-6 h-6" style={{ color }} />}
+        </div>
+        <div>
+          <p className="font-bold text-sm text-gray-800">{loading ? "AI가 분석 데이터를 해석 중..." : "AI 진단 의견 생성"}</p>
+          <p className="text-xs text-gray-400 mt-1">Claude · GPT-4o 두 AI의 관점으로 진단 결과를 해석합니다</p>
+        </div>
       </button>
     );
   }
 
+  const active = llms.find(l => l.key === activeLlm)!;
+
   return (
-    <section className="rounded-2xl border overflow-hidden" style={{ background: "linear-gradient(135deg, #fefefe, #faf8ff)" }}>
+    <section className="rounded-2xl overflow-hidden border" style={{ borderColor: active.border }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + "18" }}>
-            <Bot className="w-4 h-4" style={{ color }} />
+      <div className="px-5 py-3.5 flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${active.bg}, white)` }}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: active.clr }}>
+            <Bot className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-gray-900 text-sm">AI 진단 의견</h3>
-            {createdAt && <span className="text-[10px] text-gray-400">{timeAgo(createdAt)} {cached && "· 저장됨"}</span>}
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-gray-900 text-sm">AI 진단 의견</h3>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: active.clr + "15", color: active.clr }}>
+                {active.name}
+              </span>
+            </div>
+            {createdAt && <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(createdAt)} 생성 {cached && "· 저장됨 ✓"}</p>}
           </div>
         </div>
-        <button onClick={() => generate(true)} disabled={loading}
-          className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors">
-          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-          재생성
-        </button>
-      </div>
-
-      {/* LLM Tabs */}
-      <div className="flex gap-1.5 px-5 mb-3">
-        {llms.map(l => (
-          <button key={l.key} onClick={() => setActiveLlm(l.key)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${activeLlm === l.key ? "text-white shadow-sm" : "text-gray-500 bg-white border hover:bg-gray-50"}`}
-            style={activeLlm === l.key ? { backgroundColor: l.clr } : {}}>
-            {l.icon} {l.name}
+        <div className="flex items-center gap-2">
+          {/* LLM Switcher */}
+          <div className="flex rounded-xl overflow-hidden border bg-white shadow-sm">
+            {llms.map(l => (
+              <button key={l.key} onClick={() => setActiveLlm(l.key)}
+                className="px-3 py-1.5 text-xs font-semibold transition-all"
+                style={activeLlm === l.key
+                  ? { backgroundColor: l.clr, color: "white" }
+                  : { color: "#9ca3af" }
+                }>
+                {l.name}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => generate(true)} disabled={loading} title="재생성"
+            className="p-1.5 rounded-lg hover:bg-white/80 text-gray-400 hover:text-gray-600 transition-colors">
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Content — scrollable */}
-      <div className="px-5 pb-5">
+      {/* Content */}
+      <div className="bg-white">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-10">
-            <Loader2 className="w-7 h-7 animate-spin text-gray-300 mb-2" />
-            <span className="text-sm text-gray-400">AI가 분석 데이터를 해석 중입니다...</span>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: active.clr + "12" }}>
+              <Loader2 className="w-5 h-5 animate-spin" style={{ color: active.clr }} />
+            </div>
+            <span className="text-sm text-gray-400">{active.name}이 분석 중...</span>
           </div>
         ) : (
-          <div className="max-h-[400px] overflow-y-auto pr-1 scrollbar-thin" style={{ scrollbarWidth: "thin", scrollbarColor: "#d4d4d8 transparent" }}>
-            <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed
-              prose-headings:text-gray-900 prose-headings:text-sm prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2
-              prose-li:text-gray-600 prose-li:text-[13px] prose-li:leading-relaxed
-              prose-strong:text-gray-900 prose-p:text-[13.5px]">
-              <ReactMarkdown>{commentary[activeLlm] || "데이터 없음"}</ReactMarkdown>
+          <div className="max-h-[420px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${active.clr}40 transparent` }}>
+            <div className="px-5 py-4 prose prose-sm max-w-none text-gray-700 leading-relaxed
+              prose-headings:text-gray-900 prose-headings:text-[13px] prose-headings:font-bold prose-headings:mt-5 prose-headings:mb-2
+              prose-h2:text-sm prose-h2:border-b prose-h2:pb-1.5 prose-h2:border-gray-100
+              prose-li:text-[13px] prose-li:leading-relaxed prose-li:text-gray-600
+              prose-strong:text-gray-900 prose-p:text-[13px]
+              prose-ul:my-2 prose-ol:my-2">
+              <ReactMarkdown>{commentary[activeLlm] || "의견 없음"}</ReactMarkdown>
             </div>
           </div>
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-5 py-2.5 border-t bg-gray-50/50 flex items-center justify-between">
+        <span className="text-[10px] text-gray-400">🤖 Powered by GEOcare.AI — {llms.map(l => l.name).join(" · ")}</span>
+        <span className="text-[10px] text-gray-400">{brandName} · {industry}</span>
       </div>
     </section>
   );
@@ -578,6 +591,8 @@ export default function ClientPage() {
   const [khubRecs, setKhubRecs] = useState<any>(null);
   const [khubRecsLoading, setKhubRecsLoading] = useState(false);
   const [khubRecsSection, setKhubRecsSection] = useState<string>("");
+  const [expandedKhub, setExpandedKhub] = useState<{ id: string; title: string; content: string } | null>(null);
+  const [khubDocLoading, setKhubDocLoading] = useState<string | null>(null);
 
   // Partner Memo
   const [memoText, setMemoText] = useState("");
@@ -1761,14 +1776,31 @@ export default function ClientPage() {
                     </span>
                   )}
                 </div>
-                {khubRecs?.diagnosis?.grade && (
-                  <span className="text-xs text-gray-500">
-                    등급 {khubRecs.diagnosis.grade} · {khubRecs.diagnosis.overall_score ?? "—"}점
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {khubRecs?.diagnosis?.grade && (
+                    <span className="text-xs text-gray-500">
+                      등급 {khubRecs.diagnosis.grade} · {khubRecs.diagnosis.overall_score ?? "—"}점
+                    </span>
+                  )}
+                  {expandedKhub && (
+                    <button onClick={() => setExpandedKhub(null)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                      ← 목록으로
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="p-6">
-                {khubRecsLoading ? (
+                {/* Expanded document view */}
+                {expandedKhub ? (
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-3">{expandedKhub.title}</h4>
+                    <div className="max-h-[500px] overflow-y-auto rounded-xl bg-gray-50 p-5 border" style={{ scrollbarWidth: "thin" }}>
+                      <div className="prose prose-sm max-w-none text-gray-700 prose-headings:text-gray-900 prose-headings:text-sm prose-li:text-[13px] prose-p:text-[13px]">
+                        <ReactMarkdown>{expandedKhub.content}</ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                ) : khubRecsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
                     <span className="ml-2 text-sm text-gray-400">가이드 검색 중...</span>
@@ -1776,10 +1808,28 @@ export default function ClientPage() {
                 ) : khubRecs?.recommendations?.length > 0 ? (
                   <div className="grid md:grid-cols-2 gap-3">
                     {khubRecs.recommendations.map((rec: any, i: number) => (
-                      <div key={rec.id || i} className="p-4 rounded-xl border hover:shadow-md transition-all group cursor-pointer bg-gray-50/50">
+                      <button key={rec.id || i}
+                        onClick={async () => {
+                          if (!rec.id) return;
+                          setKhubDocLoading(rec.id);
+                          try {
+                            const res = await fetch(`${BAWEE_EF}/geobh-khub-bridge/document?id=${rec.id}`);
+                            const d = await res.json();
+                            if (d.success && d.document) {
+                              setExpandedKhub({ id: rec.id, title: d.document.title || rec.title, content: d.document.content || rec.content_snippet });
+                            } else {
+                              setExpandedKhub({ id: rec.id, title: rec.title, content: rec.content_snippet || "내용을 불러올 수 없습니다." });
+                            }
+                          } catch {
+                            setExpandedKhub({ id: rec.id, title: rec.title, content: rec.content_snippet || "내용을 불러올 수 없습니다." });
+                          }
+                          setKhubDocLoading(null);
+                        }}
+                        className="text-left p-4 rounded-xl border hover:shadow-md hover:border-blue-200 transition-all group bg-gray-50/50"
+                      >
                         <div className="flex items-start gap-3">
                           <span className="text-sm mt-0.5">
-                            {rec.project_code === "BH_COMMON" ? "📘" : rec.project_code === "GEO_COMMERCE" ? "🏪" : "📄"}
+                            {khubDocLoading === rec.id ? "⏳" : rec.project_code === "BH_COMMON" ? "📘" : rec.project_code === "GEO_COMMERCE" ? "🏪" : "📄"}
                           </span>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors truncate">
@@ -1787,12 +1837,13 @@ export default function ClientPage() {
                             </p>
                             <p className="text-xs text-gray-500 mt-1 line-clamp-2">{rec.content_snippet}</p>
                             <div className="flex items-center gap-2 mt-2">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{rec.project_code}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{rec.project_code}</span>
                               <span className="text-[10px] text-gray-400">{rec.relevance_reason}</span>
+                              <span className="text-[10px] text-blue-500 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">클릭하여 보기 →</span>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
