@@ -466,14 +466,14 @@ function AiCommentaryPanel({
   if (!commentary) {
     return (
       <button onClick={() => generate()} disabled={loading}
-        className="w-full rounded-2xl p-6 text-center transition-all flex flex-col items-center gap-3 group border-2 border-dashed hover:border-solid"
-        style={{ borderColor: loading ? "#d1d5db" : color + "40", background: `linear-gradient(135deg, ${color}06, ${color}03)` }}>
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: color + "12" }}>
-          {loading ? <Loader2 className="w-6 h-6 animate-spin" style={{ color }} /> : <Bot className="w-6 h-6" style={{ color }} />}
+        className="w-full rounded-xl p-3 text-center transition-all flex items-center gap-2.5 group border border-dashed hover:border-solid"
+        style={{ borderColor: loading ? "#d1d5db" : color + "40", background: `linear-gradient(135deg, ${color}04, ${color}02)` }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: color + "10" }}>
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color }} /> : <Bot className="w-4 h-4" style={{ color }} />}
         </div>
-        <div>
-          <p className="font-bold text-sm text-gray-800">{loading ? "AI가 분석 데이터를 해석 중..." : "AI 진단 의견 생성"}</p>
-          <p className="text-xs text-gray-400 mt-1">Claude · GPT-4o 두 AI의 관점으로 진단 결과를 해석합니다</p>
+        <div className="text-left">
+          <p className="font-semibold text-xs text-gray-700">{loading ? "AI 분석 중..." : "AI 진단 의견 생성"}</p>
+          <p className="text-[10px] text-gray-400">Claude · GPT-4o 비교</p>
         </div>
       </button>
     );
@@ -482,71 +482,60 @@ function AiCommentaryPanel({
   const active = llms.find(l => l.key === activeLlm)!;
 
   return (
-    <section className="rounded-2xl overflow-hidden border" style={{ borderColor: active.border }}>
-      {/* Header */}
-      <div className="px-5 py-3.5 flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${active.bg}, white)` }}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: active.clr }}>
-            <Bot className="w-4 h-4 text-white" />
+    <section className="rounded-xl overflow-hidden border" style={{ borderColor: active.border }}>
+      {/* Header — compact */}
+      <div className="px-3.5 py-2 flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${active.bg}, white)` }}>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: active.clr }}>
+            <Bot className="w-3 h-3 text-white" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-gray-900 text-sm">AI 진단 의견</h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: active.clr + "15", color: active.clr }}>
-                {active.name}
-              </span>
-            </div>
-            {createdAt && <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(createdAt)} 생성 {cached && "· 저장됨 ✓"}</p>}
+          <div className="flex items-center gap-1.5">
+            <h3 className="font-bold text-gray-900 text-xs">AI 진단</h3>
+            <span className="text-[9px] px-1 py-0.5 rounded-full font-medium" style={{ backgroundColor: active.clr + "15", color: active.clr }}>
+              {active.name}
+            </span>
+            {createdAt && <span className="text-[9px] text-gray-400 hidden sm:inline">{fmtDate(createdAt)}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* LLM Switcher */}
-          <div className="flex rounded-xl overflow-hidden border bg-white shadow-sm">
+        <div className="flex items-center gap-1">
+          <div className="flex rounded-lg overflow-hidden border bg-white text-[10px]">
             {llms.map(l => (
               <button key={l.key} onClick={() => setActiveLlm(l.key)}
-                className="px-3 py-1.5 text-xs font-semibold transition-all"
-                style={activeLlm === l.key
-                  ? { backgroundColor: l.clr, color: "white" }
-                  : { color: "#9ca3af" }
-                }>
+                className="px-2 py-1 font-semibold transition-all"
+                style={activeLlm === l.key ? { backgroundColor: l.clr, color: "white" } : { color: "#9ca3af" }}>
                 {l.name}
               </button>
             ))}
           </div>
           <button onClick={() => generate(true)} disabled={loading} title="재생성"
-            className="p-1.5 rounded-lg hover:bg-white/80 text-gray-400 hover:text-gray-600 transition-colors">
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            className="p-1 rounded hover:bg-white/80 text-gray-400 hover:text-gray-600 transition-colors">
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
           </button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content — compact scrollable, ~1/3 viewport */}
       <div className="bg-white">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: active.clr + "12" }}>
-              <Loader2 className="w-5 h-5 animate-spin" style={{ color: active.clr }} />
-            </div>
-            <span className="text-sm text-gray-400">{active.name}이 분석 중...</span>
+          <div className="flex items-center justify-center py-6 gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: active.clr }} />
+            <span className="text-xs text-gray-400">{active.name} 분석 중...</span>
           </div>
         ) : (
-          <div className="max-h-[420px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${active.clr}40 transparent` }}>
-            <div className="px-5 py-4 prose prose-sm max-w-none text-gray-700 leading-relaxed
-              prose-headings:text-gray-900 prose-headings:text-[13px] prose-headings:font-bold prose-headings:mt-5 prose-headings:mb-2
-              prose-h2:text-sm prose-h2:border-b prose-h2:pb-1.5 prose-h2:border-gray-100
-              prose-li:text-[13px] prose-li:leading-relaxed prose-li:text-gray-600
-              prose-strong:text-gray-900 prose-p:text-[13px]
-              prose-ul:my-2 prose-ol:my-2">
+          <div className="max-h-[220px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${active.clr}30 transparent` }}>
+            <div className="px-3.5 py-2.5 max-w-none text-gray-600 leading-relaxed text-[11.5px]
+              [&_h1]:text-xs [&_h1]:font-bold [&_h1]:text-gray-900 [&_h1]:mt-3 [&_h1]:mb-1
+              [&_h2]:text-[11.5px] [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mt-2.5 [&_h2]:mb-1
+              [&_h3]:text-[11px] [&_h3]:font-bold [&_h3]:text-gray-800 [&_h3]:mt-2 [&_h3]:mb-0.5
+              [&_h4]:text-[11px] [&_h4]:font-semibold [&_h4]:text-gray-800 [&_h4]:mt-1.5 [&_h4]:mb-0.5
+              [&_p]:text-[11.5px] [&_p]:my-1 [&_p]:leading-relaxed
+              [&_li]:text-[11px] [&_li]:leading-relaxed [&_li]:text-gray-600
+              [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4
+              [&_strong]:text-gray-900">
               <ReactMarkdown>{commentary[activeLlm] || "의견 없음"}</ReactMarkdown>
             </div>
           </div>
         )}
-      </div>
-
-      {/* Footer */}
-      <div className="px-5 py-2.5 border-t bg-gray-50/50 flex items-center justify-between">
-        <span className="text-[10px] text-gray-400">🤖 Powered by GEOcare.AI — {llms.map(l => l.name).join(" · ")}</span>
-        <span className="text-[10px] text-gray-400">{brandName} · {industry}</span>
       </div>
     </section>
   );
