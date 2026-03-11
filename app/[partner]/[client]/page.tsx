@@ -828,6 +828,11 @@ export default function ClientPage() {
         {/* ──── OVERVIEW TAB — Authority Index ──── */}
         {activeSection === "overview" && (
           <div className="space-y-8">
+            {/* AI Commentary — Overview Top */}
+            {(geoReport || eeatData) && (
+              <AiCommentaryPanel tab="overview" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+                data={{ authority_index: geoReport?.authority_index, authority_grade: geoReport?.authority_grade, pillars: geoReport?.pillars, eeat_score: sc?.overall_score, som_share: somData?.latest?.overall_share }} />
+            )}
             {/* Authority Index Hero */}
             {geoReport ? (() => {
               const ai = geoReport.authority_index;
@@ -1015,18 +1020,15 @@ export default function ClientPage() {
                 <p className="text-white/60 text-sm mt-2">종합 GEO 진단 데이터를 준비 중입니다.</p>
               </section>
             )}
-
-            {/* AI Commentary — Overview */}
-            {(geoReport || eeatData) && (
-              <AiCommentaryPanel tab="overview" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
-                data={{ authority_index: geoReport?.authority_index, authority_grade: geoReport?.authority_grade, pillars: geoReport?.pillars, eeat_score: sc?.overall_score, som_share: somData?.latest?.overall_share }} />
-            )}
           </div>
         )}
 
         {/* ──── ANALYSIS TAB ──── */}
         {activeSection === "analysis" && sc && (
           <div className="space-y-8">
+            {/* AI Commentary — Top */}
+            <AiCommentaryPanel tab="analysis" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ overall_score: sc.overall_score, overall_grade: sc.overall_grade, experience: sc.experience.score, expertise: sc.expertise.score, authoritativeness: sc.authoritativeness.score, trustworthiness: sc.trustworthiness.score, strengths: eeatData?.analysis?.action_plan?.strengths, weaknesses: eeatData?.analysis?.action_plan?.weaknesses }} />
             {/* Scorecard */}
             <section className="bg-white rounded-2xl border p-6">
               <div className="flex items-center justify-between mb-6">
@@ -1246,10 +1248,6 @@ export default function ClientPage() {
 
             {/* EEAT Full Report (inline) */}
             <EeatReportInline efUrl={BAWEE_EF} clientSlug={client} />
-
-            {/* AI Commentary */}
-            <AiCommentaryPanel tab="analysis" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
-              data={{ overall_score: sc.overall_score, overall_grade: sc.overall_grade, experience: sc.experience.score, expertise: sc.expertise.score, authoritativeness: sc.authoritativeness.score, trustworthiness: sc.trustworthiness.score, strengths: eeatData?.analysis?.action_plan?.strengths, weaknesses: eeatData?.analysis?.action_plan?.weaknesses }} />
           </div>
         )}
 
@@ -1277,6 +1275,8 @@ export default function ClientPage() {
         {/* ──── CITATION MOAT TAB ──── */}
         {activeSection === "citation" && (
           <div className="space-y-4">
+            <AiCommentaryPanel tab="citation" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ tab: "citation_moat", slug: client }} />
             {isAdmin && (
               <div className="flex justify-end">
                 {triggerResult?.type === "citation" && (
@@ -1290,14 +1290,17 @@ export default function ClientPage() {
               </div>
             )}
             <CitationMoatTab efUrl={BAWEE_EF} clientSlug={client} />
-            <AiCommentaryPanel tab="citation" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
-              data={{ tab: "citation_moat", slug: client }} />
           </div>
         )}
 
         {/* ──── SOM TAB ──── */}
         {activeSection === "som" && (
           <div className="space-y-6">
+            {/* AI Commentary — SoM Top */}
+            {somData?.latest && (
+              <AiCommentaryPanel tab="som" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+                data={{ overall_share: somData.latest.overall_share, avg_rank: somData.latest.avg_rank, top3_rate: somData.latest.top3_rate, llm_shares: somData.llm_shares }} />
+            )}
             {somLoading && (
               <div className="bg-white rounded-2xl border p-12 flex items-center justify-center">
                 <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
@@ -1416,18 +1419,14 @@ export default function ClientPage() {
                 </>
               );
             })()}
-
-            {/* AI Commentary — SoM */}
-            {somData?.latest && (
-              <AiCommentaryPanel tab="som" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
-                data={{ overall_share: somData.latest.overall_share, avg_rank: somData.latest.avg_rank, top3_rate: somData.latest.top3_rate, llm_shares: somData.llm_shares }} />
-            )}
           </div>
         )}
 
         {/* ──── COMPLIANCE TAB ──── */}
         {activeSection === "compliance" && (
           <div className="space-y-4">
+            <AiCommentaryPanel tab="compliance" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ tab: "compliance", slug: client, eeat_grade: sc?.overall_grade, trust_score: sc?.trustworthiness?.score }} />
             {!sc && isAdmin && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
                 <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
@@ -1447,14 +1446,14 @@ export default function ClientPage() {
               icon="⚖️"
               downloadName="compliance-report"
             />
-            <AiCommentaryPanel tab="compliance" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
-              data={{ tab: "compliance", slug: client, eeat_grade: sc?.overall_grade, trust_score: sc?.trustworthiness?.score }} />
           </div>
         )}
 
         {/* ──── COMPETITOR TAB ──── */}
         {activeSection === "competitor" && (
           <div className="space-y-4">
+            <AiCommentaryPanel tab="competitor" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
+              data={{ tab: "competitor", slug: client }} />
             {isAdmin && (
               <div className="flex justify-end">
                 {triggerResult?.type === "competitor" && (
@@ -1476,8 +1475,6 @@ export default function ClientPage() {
               icon="🎯"
               downloadName="competitor-report"
             />
-            <AiCommentaryPanel tab="competitor" slug={client} brandName={hubConfig?.brand_name || client} industry={eeatData?.analysis?.industry || ""} color={color}
-              data={{ tab: "competitor", slug: client }} />
           </div>
         )}
 
