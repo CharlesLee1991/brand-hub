@@ -50,8 +50,9 @@ export default function LoginPage() {
       const redirect = params.get("redirect");
       if (redirect) {
         router.replace(redirect);
-      } else if (partnerMode && partnerSlug === partnerMode) {
-        router.replace("/" + partnerMode);
+      } else if (partnerMode) {
+        // Subdomain: go to root (middleware rewrites to /{partner})
+        router.replace("/");
       } else if (isAdmin) {
         router.replace("/");
       } else if (partnerSlug) {
@@ -99,7 +100,8 @@ export default function LoginPage() {
       if (redirect) {
         window.location.href = redirect;
       } else if (partnerMode) {
-        window.location.href = "/" + partnerMode;
+        // Subdomain: go to root (middleware rewrites to /{partner})
+        window.location.href = "/";
       } else {
         window.location.href = "/";
       }

@@ -75,7 +75,8 @@ export function middleware(req: NextRequest) {
   if (!hasAuthCookie) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("redirect", effectivePath);
+    // Subdomain: redirect to original path (not effectivePath which has subdomain prefix)
+    loginUrl.searchParams.set("redirect", subdomain && subdomain !== "www" ? url.pathname : effectivePath);
     if (subdomain && subdomain !== "www") {
       loginUrl.searchParams.set("partner", subdomain);
     }
