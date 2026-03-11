@@ -697,13 +697,15 @@ export default function ClientPage() {
           <Link href={isSubdomain ? "/" : `/${partner}`} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </Link>
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ backgroundColor: color }}
-          >
-            <Bot className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
+          <Link href={isSubdomain ? "/" : `/${partner}`} className="hover:opacity-80 transition-opacity">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: color }}
+            >
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+          </Link>
+          <Link href={isSubdomain ? "/" : `/${partner}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
             <div className="flex items-center gap-2 text-xs text-gray-400 mb-0.5">
               <span>{hubConfig.brand_name}</span>
               <span>›</span>
@@ -712,7 +714,7 @@ export default function ClientPage() {
             <h1 className="font-bold text-gray-900 truncate">
               {eeatData?.analysis?.industry ? eeatData.analysis.industry + " — " : ""}{client}
             </h1>
-          </div>
+          </Link>
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-xs text-gray-400 hidden sm:inline">{displayName || user?.email}</span>
             {isAdmin && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">Admin</span>}
