@@ -214,15 +214,23 @@ function EeatReportInline({ efUrl, clientSlug }: { efUrl: string; clientSlug: st
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `eeat-report-${clientSlug}.html`;
-              a.click();
-              URL.revokeObjectURL(url);
+              try {
+                const res = await fetch(`${efUrl}/geobh-report-with-commentary?ef=geobh-eeat-report&slug=${clientSlug}`);
+                const text = await res.text();
+                const blob = new Blob([text.includes("</body>") ? text : html], { type: "text/html;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `eeat-report-${clientSlug}.html`; a.click();
+                URL.revokeObjectURL(url);
+              } catch {
+                const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `eeat-report-${clientSlug}.html`; a.click();
+                URL.revokeObjectURL(url);
+              }
             }}
             className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition-colors"
           >
@@ -268,21 +276,29 @@ function CitationMoatTab({ efUrl, clientSlug }: { efUrl: string; clientSlug: str
           <p className="text-sm text-gray-500 mt-1">AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.</p>
         </div>
         <button
-          onClick={() => {
-            if (!html) return;
-            const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `citation-moat-${clientSlug}.html`;
-            a.click();
-            URL.revokeObjectURL(url);
+          onClick={async () => {
+            try {
+              const res = await fetch(`${efUrl}/geobh-report-with-commentary?ef=geobh-moat-report&slug=${clientSlug}`);
+              const text = await res.text();
+              const blob = new Blob([text.includes("</body>") ? text : (html || "")], { type: "text/html;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url; a.download = `citation-moat-${clientSlug}.html`; a.click();
+              URL.revokeObjectURL(url);
+            } catch {
+              if (!html) return;
+              const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url; a.download = `citation-moat-${clientSlug}.html`; a.click();
+              URL.revokeObjectURL(url);
+            }
           }}
           disabled={!html}
           className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5 disabled:opacity-40"
         >
           <FileText className="w-3.5 h-3.5" />
-          다운로드
+          다운로드 (AI 의견 포함)
         </button>
       </div>
 
@@ -324,6 +340,7 @@ function ReportIframeTab({
 }) {
   const [html, setHtml] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     fetch(efUrl + "/" + efSlug + "?slug=" + clientSlug)
@@ -331,6 +348,34 @@ function ReportIframeTab({
       .then((text) => { setHtml(text); setLoading(false); })
       .catch(() => setLoading(false));
   }, [efUrl, clientSlug, efSlug]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      // Fetch report with AI commentary injected
+      const res = await fetch(`${efUrl}/geobh-report-with-commentary?ef=${efSlug}&slug=${clientSlug}`);
+      const text = await res.text();
+      const blob = new Blob([text], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = downloadName + "-" + clientSlug + ".html";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Fallback to original HTML
+      if (html) {
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = downloadName + "-" + clientSlug + ".html";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    }
+    setDownloading(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -340,21 +385,12 @@ function ReportIframeTab({
           <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
         </div>
         <button
-          onClick={() => {
-            if (!html) return;
-            const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = downloadName + "-" + clientSlug + ".html";
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
-          disabled={!html}
+          onClick={handleDownload}
+          disabled={!html || downloading}
           className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center gap-1.5 disabled:opacity-40"
         >
-          <FileText className="w-3.5 h-3.5" />
-          다운로드
+          {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+          {downloading ? "준비 중..." : "다운로드 (AI 의견 포함)"}
         </button>
       </div>
       <div className="bg-white rounded-xl border overflow-hidden" style={{ height: "calc(100vh - 180px)" }}>
@@ -1034,7 +1070,7 @@ export default function ClientPage() {
                             )}
                             <button
                               onClick={async () => {
-                                const res = await fetch(BAWEE_EF + "/" + r.ef + "?slug=" + client);
+                                const res = await fetch(BAWEE_EF + "/geobh-report-with-commentary?ef=" + r.ef + "&slug=" + client);
                                 const text = await res.text();
                                 const blob = new Blob([text], { type: "text/html;charset=utf-8" });
                                 const url = URL.createObjectURL(blob);
