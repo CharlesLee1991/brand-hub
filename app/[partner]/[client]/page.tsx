@@ -598,6 +598,7 @@ export default function ClientPage() {
   const [clImproveResult, setClImproveResult] = useState<any>(null);
   const [clImproveLoading, setClImproveLoading] = useState(false);
   const [clImproveLlm, setClImproveLlm] = useState<"claude" | "gpt">("claude");
+  const [clSavedContents, setClSavedContents] = useState<any[]>([]);
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
 
@@ -1810,15 +1811,38 @@ export default function ClientPage() {
                         <span className="text-xs text-gray-400">·</span>
                         <span className="text-sm text-gray-600">{clGenResult.content_label}</span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-400">
-                        <span>{(clGenResult.elapsed_ms / 1000).toFixed(1)}s</span>
-                        <span>{clGenResult.content?.length?.toLocaleString()}자</span>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-400">{(clGenResult.elapsed_ms / 1000).toFixed(1)}s · {clGenResult.content?.length?.toLocaleString()}자</span>
                         <button onClick={() => navigator.clipboard.writeText(clGenResult.content)}
                           className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
+                        <button onClick={() => window.open(`${efBase}/geobh-content-page?slug=${client}&content=${clGenResult.content_slug}`, "_blank")}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 text-blue-600 font-medium">미리보기 ↗</button>
+                        {!clGenResult.published_url && (
+                          <button onClick={async () => {
+                            const r = await fetch(efBase + "/geobh-content-gen", {
+                              method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ slug: client, content_type: clGenResult.content_type || clSelectedType, llm: clGenResult.llm, publish: true, title: clGenResult.content?.match(/^#\s+(.+)$/m)?.[1], custom_slug: clGenResult.content_slug }),
+                            });
+                            const d = await r.json();
+                            if (d.published_url) { setClGenResult({ ...clGenResult, published_url: d.published_url, view_url: d.view_url }); }
+                          }} className="px-3 py-1 rounded text-white text-xs font-bold" style={{ backgroundColor: color }}>
+                            🚀 발행
+                          </button>
+                        )}
+                        {clGenResult.published_url && (
+                          <a href={clGenResult.view_url || clGenResult.published_url} target="_blank" rel="noopener"
+                            className="px-3 py-1 rounded bg-green-50 text-green-700 text-xs font-bold">✅ 발행됨 ↗</a>
+                        )}
                       </div>
                     </div>
                     <div className="p-4 max-h-[400px] overflow-y-auto">
-                      <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap leading-relaxed">{clGenResult.content}</div>
+                      <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed
+                        [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2
+                        [&_h3]:text-[13px] [&_h3]:font-bold [&_p]:text-[13px] [&_li]:text-[13px]
+                        [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto
+                        [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px]">
+                        <ReactMarkdown>{clGenResult.content}</ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1874,6 +1898,56 @@ export default function ClientPage() {
                   </div>
                 </div>
               )}
+
+              {/* Saved Contents from DB */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold text-gray-700">📁 저장된 콘텐츠</h4>
+                  <button onClick={async () => {
+                    try {
+                      const r = await fetch(`${efBase.replace('/functions/v1', '')}/rest/v1/bmp_generated_contents?hub_slug=eq.${client}&select=id,title,slug,content_type,llm_provider,status,char_count,created_at&order=created_at.desc&limit=20`, {
+                        headers: { "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5udHV6dGFlaG55d2RidHRyYWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5ODg3MzEsImV4cCI6MjA2MzU2NDczMX0.aBbYy3BC89e-x1EMj4bVfan9MFIV3R6M6cKpNjJIDu0" }
+                      });
+                      setClSavedContents(await r.json());
+                    } catch {}
+                  }} className="text-xs text-blue-600 hover:underline">불러오기</button>
+                </div>
+                {clSavedContents.length > 0 && (
+                  <div className="bg-white rounded-xl border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 text-gray-500">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">제목</th>
+                          <th className="text-center px-3 py-2 font-medium w-16">유형</th>
+                          <th className="text-center px-3 py-2 font-medium w-16">AI</th>
+                          <th className="text-center px-3 py-2 font-medium w-16">상태</th>
+                          <th className="text-center px-3 py-2 font-medium w-24">액션</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {clSavedContents.map((c: any) => (
+                          <tr key={c.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 font-medium text-gray-900 truncate max-w-[200px]">{c.title}</td>
+                            <td className="px-3 py-2 text-center text-gray-500">{c.content_type}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: c.llm_provider === "claude" ? "#d97706" : c.llm_provider === "gpt" ? "#10a37f" : c.llm_provider === "gemini" ? "#4285f4" : "#000" }} />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${c.status === "published" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                                {c.status === "published" ? "발행" : "초안"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <button onClick={() => window.open(`${efBase}/geobh-content-page?slug=${client}&content=${c.slug}`, "_blank")}
+                                className="px-1.5 py-0.5 rounded border text-blue-600 hover:bg-blue-50 text-[10px]">보기↗</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
             )} {/* close generate mode */}
           </div>
