@@ -1815,7 +1815,7 @@ export default function ClientPage() {
                         <span className="text-gray-400">{(clGenResult.elapsed_ms / 1000).toFixed(1)}s · {clGenResult.content?.length?.toLocaleString()}자</span>
                         <button onClick={() => navigator.clipboard.writeText(clGenResult.content)}
                           className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
-                        <button onClick={() => window.open(`${efBase}/geobh-content-page?slug=${client}&content=${clGenResult.content_slug}`, "_blank")}
+                        <button onClick={() => window.open(`/api/content-page?slug=${client}&content=${clGenResult.content_slug}`, "_blank")}
                           className="px-2 py-1 rounded border hover:bg-gray-100 text-blue-600 font-medium">미리보기 ↗</button>
                         {!clGenResult.published_url && (
                           <button onClick={async () => {
@@ -1938,7 +1938,7 @@ export default function ClientPage() {
                               </span>
                             </td>
                             <td className="px-3 py-2 text-center">
-                              <button onClick={() => window.open(`${efBase}/geobh-content-page?slug=${client}&content=${c.slug}`, "_blank")}
+                              <button onClick={() => window.open(`/api/content-page?slug=${client}&content=${c.slug}`, "_blank")}
                                 className="px-1.5 py-0.5 rounded border text-blue-600 hover:bg-blue-50 text-[10px]">보기↗</button>
                             </td>
                           </tr>
