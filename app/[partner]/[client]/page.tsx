@@ -668,7 +668,7 @@ export default function ClientPage() {
 
         // 4. Analysis status (for trigger buttons)
         try {
-          const statusRes = await fetch(`${BAWEE_EF}/geobh-api/analysis-status?slug=${client}`);
+          const statusRes = await fetch(`${BAWEE_EF}/geobh-api/analysis-status?slug=${partner}&client=${client}`);
           const status = await statusRes.json();
           if (status.success) setAnalysisStatus(status);
         } catch {}
