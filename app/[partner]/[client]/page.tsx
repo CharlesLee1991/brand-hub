@@ -2142,6 +2142,36 @@ export default function ClientPage() {
                   </button>
                 </div>
 
+                {/* Inline Content Viewer — 테이블 위 표시 */}
+                {clViewContent && (
+                  <div className="mb-4 bg-white rounded-xl border overflow-hidden shadow-sm" id="cl-viewer">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: clViewContent.llm_provider === "claude" ? "#d97706" : clViewContent.llm_provider === "gpt" ? "#10a37f" : clViewContent.llm_provider === "gemini" ? "#4285f4" : "#000" }} />
+                        <span className="text-sm font-bold">{clViewContent.title || clViewContent.slug}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${clViewContent.status === "published" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {clViewContent.status === "published" ? "발행됨" : "초안"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <button onClick={() => navigator.clipboard.writeText(clViewContent.body_md || "")}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
+                        <button onClick={() => setClViewContent(null)}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">✕ 닫기</button>
+                      </div>
+                    </div>
+                    <div className="p-4 max-h-[500px] overflow-y-auto">
+                      <ContentPreview
+                        content={clViewContent.body_md || ""}
+                        contentType={clViewContent.content_type || "blog"}
+                        color={color}
+                        slug={client}
+                        brandName={hubConfig?.brand_name}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {clSavedContents.length > 0 && (
                   <div className="bg-white rounded-xl border overflow-hidden">
                     <table className="w-full text-xs">
@@ -2179,7 +2209,8 @@ export default function ClientPage() {
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-center text-gray-400">{new Date(c.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-                              <td className="px-3 py-2 text-center flex items-center justify-center gap-1">
+                              <td className="px-3 py-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
                                 <button onClick={async () => {
                                   if (isViewing) { setClViewContent(null); return; }
                                   try {
@@ -2187,24 +2218,30 @@ export default function ClientPage() {
                                       .select("id,title,slug,content_type,llm_provider,llm_model,status,char_count,body_md,generation_ms")
                                       .eq("id", c.id)
                                       .limit(1);
-                                    if (rows?.[0]) setClViewContent(rows[0]);
-                                  } catch {}
+                                    if (rows?.[0]) {
+                                      setClViewContent(rows[0]);
+                                      setTimeout(() => document.getElementById("cl-viewer")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                                    }
+                                  } catch (e) { console.error("보기 에러:", e); }
                                 }} className={`px-1.5 py-0.5 rounded border text-[10px] ${isViewing ? "bg-blue-600 text-white border-blue-600" : "text-blue-600 hover:bg-blue-50"}`}>
                                   {isViewing ? "닫기" : "보기"}
                                 </button>
                                 {c.status !== "published" && (
                                   <button onClick={async () => {
                                     try {
-                                      await fetch(efBase + "/geobh-content-gen", {
+                                      const r = await fetch(efBase + "/geobh-content-gen", {
                                         method: "POST", headers: { "Content-Type": "application/json" },
                                         body: JSON.stringify({ slug: client, content_type: c.content_type, llm: c.llm_provider, publish: true, title: c.title, custom_slug: c.slug }),
                                       });
+                                      const d = await r.json();
+                                      if (d.published_url || d.success) { alert("✅ 발행되었습니다"); }
                                       loadSavedContents();
-                                    } catch {}
+                                    } catch (e) { console.error("발행 에러:", e); alert("발행 중 오류가 발생했습니다"); }
                                   }} className="px-1.5 py-0.5 rounded text-white text-[10px] font-bold" style={{ backgroundColor: color }}>
                                     발행
                                   </button>
                                 )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2216,36 +2253,6 @@ export default function ClientPage() {
 
                 {clSavedContents.length === 0 && (
                   <div className="text-center py-8 text-gray-400 text-sm">아직 생성된 콘텐츠가 없습니다. 위에서 콘텐츠를 생성해보세요.</div>
-                )}
-
-                {/* Inline Content Viewer */}
-                {clViewContent && (
-                  <div className="mt-4 bg-white rounded-xl border overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: clViewContent.llm_provider === "claude" ? "#d97706" : clViewContent.llm_provider === "gpt" ? "#10a37f" : clViewContent.llm_provider === "gemini" ? "#4285f4" : "#000" }} />
-                        <span className="text-sm font-bold">{clViewContent.title || clViewContent.slug}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${clViewContent.status === "published" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                          {clViewContent.status === "published" ? "발행됨" : "초안"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <button onClick={() => navigator.clipboard.writeText(clViewContent.body_md || "")}
-                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
-                        <button onClick={() => setClViewContent(null)}
-                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">닫기</button>
-                      </div>
-                    </div>
-                    <div className="p-4 max-h-[500px] overflow-y-auto">
-                      <ContentPreview
-                        content={clViewContent.body_md || ""}
-                        contentType={clViewContent.content_type || "blog"}
-                        color={color}
-                        slug={client}
-                        brandName={hubConfig?.brand_name}
-                      />
-                    </div>
-                  </div>
                 )}
               </div>
             </div>
