@@ -854,8 +854,23 @@ export default function ClientPage() {
   const [clImproveLoading, setClImproveLoading] = useState(false);
   const [clImproveLlm, setClImproveLlm] = useState<"claude" | "gpt">("claude");
   const [clSavedContents, setClSavedContents] = useState<any[]>([]);
+  const [clViewContent, setClViewContent] = useState<any>(null);
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
+  const BAWEE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5udHV6dGFlaG55d2RidHRyYWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5ODg3MzEsImV4cCI6MjA2MzU2NDczMX0.aBbYy3BC89e-x1EMj4bVfan9MFIV3R6M6cKpNjJIDu0";
+  const loadSavedContents = async () => {
+    try {
+      const r = await fetch(`https://nntuztaehnywdbttrajy.supabase.co/rest/v1/bmp_generated_contents?hub_slug=eq.${client}&select=id,title,slug,content_type,llm_provider,llm_model,status,char_count,generation_ms,created_at&order=created_at.desc&limit=50`, {
+        headers: { "apikey": BAWEE_ANON }
+      });
+      setClSavedContents(await r.json());
+    } catch {}
+  };
+
+  // Auto-load saved contents when contentlab tab opens
+  useEffect(() => {
+    if (activeSection === "contentlab" && client) loadSavedContents();
+  }, [activeSection, client]);
 
   // Analysis status & trigger
   const [analysisStatus, setAnalysisStatus] = useState<any>(null);
@@ -1862,7 +1877,7 @@ export default function ClientPage() {
               });
               const d = await r.json();
               setClGenResult(d);
-              if (d.success) setClHistory(prev => [...prev, d]);
+              if (d.success) { setClHistory(prev => [...prev, d]); loadSavedContents(); }
             } catch {}
             setClGenLoading(false);
           };
@@ -2070,23 +2085,20 @@ export default function ClientPage() {
                         <span className="text-gray-400">{(clGenResult.elapsed_ms / 1000).toFixed(1)}s · {clGenResult.content?.length?.toLocaleString()}자</span>
                         <button onClick={() => navigator.clipboard.writeText(clGenResult.content)}
                           className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
-                        <button onClick={() => window.open(`/api/content-page?slug=${client}&content=${clGenResult.content_slug}`, "_blank")}
-                          className="px-2 py-1 rounded border hover:bg-gray-100 text-blue-600 font-medium">미리보기 ↗</button>
-                        {!clGenResult.published_url && (
+                        {!clGenResult.published_url && clGenResult.status !== "published" && (
                           <button onClick={async () => {
                             const r = await fetch(efBase + "/geobh-content-gen", {
                               method: "POST", headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ slug: client, content_type: clGenResult.content_type || clSelectedType, llm: clGenResult.llm, publish: true, title: clGenResult.content?.match(/^#\s+(.+)$/m)?.[1], custom_slug: clGenResult.content_slug }),
                             });
                             const d = await r.json();
-                            if (d.published_url) { setClGenResult({ ...clGenResult, published_url: d.published_url, view_url: d.view_url }); }
+                            if (d.published_url) { setClGenResult({ ...clGenResult, published_url: d.published_url, status: "published" }); loadSavedContents(); }
                           }} className="px-3 py-1 rounded text-white text-xs font-bold" style={{ backgroundColor: color }}>
                             🚀 발행
                           </button>
                         )}
-                        {clGenResult.published_url && (
-                          <a href={clGenResult.view_url || clGenResult.published_url} target="_blank" rel="noopener"
-                            className="px-3 py-1 rounded bg-green-50 text-green-700 text-xs font-bold">✅ 발행됨 ↗</a>
+                        {(clGenResult.published_url || clGenResult.status === "published") && (
+                          <span className="px-3 py-1 rounded bg-green-50 text-green-700 text-xs font-bold">✅ 발행됨</span>
                         )}
                       </div>
                     </div>
@@ -2118,55 +2130,15 @@ export default function ClientPage() {
                 </div>
               )}
 
-              {/* History */}
-              {clHistory.length > 1 && (
-                <div>
-                  <h4 className="text-sm font-bold text-gray-700 mb-2">📊 생성 비교 ({clHistory.length}건)</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm bg-white rounded-xl border">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left px-3 py-2 font-medium text-gray-600">AI</th>
-                          <th className="text-left px-3 py-2 font-medium text-gray-600">유형</th>
-                          <th className="text-center px-3 py-2 font-medium text-gray-600">시간</th>
-                          <th className="text-center px-3 py-2 font-medium text-gray-600">글자수</th>
-                          <th className="text-center px-3 py-2 font-medium text-gray-600"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {clHistory.map((h, i) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CL_LLMS.find(l => l.key === h.llm)?.clr }} />
-                              <span className="font-medium">{h.llm_label || h.llm_model}</span>
-                            </td>
-                            <td className="px-3 py-2 text-gray-600">{h.content_label}</td>
-                            <td className="px-3 py-2 text-center">{(h.elapsed_ms / 1000).toFixed(1)}s</td>
-                            <td className="px-3 py-2 text-center">{h.content?.length?.toLocaleString()}</td>
-                            <td className="px-3 py-2 text-center">
-                              <button onClick={() => setClGenResult(h)} className="text-xs text-blue-600 hover:underline">보기</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Saved Contents from DB */}
+              {/* Content History from DB (auto-loaded) */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold text-gray-700">📁 저장된 콘텐츠</h4>
-                  <button onClick={async () => {
-                    try {
-                      const r = await fetch(`${efBase.replace('/functions/v1', '')}/rest/v1/bmp_generated_contents?hub_slug=eq.${client}&select=id,title,slug,content_type,llm_provider,status,char_count,created_at&order=created_at.desc&limit=20`, {
-                        headers: { "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5udHV6dGFlaG55d2RidHRyYWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5ODg3MzEsImV4cCI6MjA2MzU2NDczMX0.aBbYy3BC89e-x1EMj4bVfan9MFIV3R6M6cKpNjJIDu0" }
-                      });
-                      setClSavedContents(await r.json());
-                    } catch {}
-                  }} className="text-xs text-blue-600 hover:underline">불러오기</button>
+                  <h4 className="text-sm font-bold text-gray-700">📁 콘텐츠 이력 {clSavedContents.length > 0 ? `(${clSavedContents.length}건)` : ""}</h4>
+                  <button onClick={loadSavedContents} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3" /> 새로고침
+                  </button>
                 </div>
+
                 {clSavedContents.length > 0 && (
                   <div className="bg-white rounded-xl border overflow-hidden">
                     <table className="w-full text-xs">
@@ -2174,32 +2146,102 @@ export default function ClientPage() {
                         <tr>
                           <th className="text-left px-3 py-2 font-medium">제목</th>
                           <th className="text-center px-3 py-2 font-medium w-16">유형</th>
-                          <th className="text-center px-3 py-2 font-medium w-16">AI</th>
-                          <th className="text-center px-3 py-2 font-medium w-16">상태</th>
-                          <th className="text-center px-3 py-2 font-medium w-24">액션</th>
+                          <th className="text-center px-3 py-2 font-medium w-14">AI</th>
+                          <th className="text-center px-3 py-2 font-medium w-14">시간</th>
+                          <th className="text-center px-3 py-2 font-medium w-14">글자수</th>
+                          <th className="text-center px-3 py-2 font-medium w-14">상태</th>
+                          <th className="text-center px-3 py-2 font-medium w-20">생성일</th>
+                          <th className="text-center px-3 py-2 font-medium w-28">액션</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {clSavedContents.map((c: any) => (
-                          <tr key={c.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 font-medium text-gray-900 truncate max-w-[200px]">{c.title}</td>
-                            <td className="px-3 py-2 text-center text-gray-500">{c.content_type}</td>
-                            <td className="px-3 py-2 text-center">
-                              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: c.llm_provider === "claude" ? "#d97706" : c.llm_provider === "gpt" ? "#10a37f" : c.llm_provider === "gemini" ? "#4285f4" : "#000" }} />
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${c.status === "published" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                                {c.status === "published" ? "발행" : "초안"}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <button onClick={() => window.open(`/api/content-page?slug=${client}&content=${c.slug}`, "_blank")}
-                                className="px-1.5 py-0.5 rounded border text-blue-600 hover:bg-blue-50 text-[10px]">보기↗</button>
-                            </td>
-                          </tr>
-                        ))}
+                        {clSavedContents.map((c: any) => {
+                          const llmClr = c.llm_provider === "claude" ? "#d97706" : c.llm_provider === "gpt" ? "#10a37f" : c.llm_provider === "gemini" ? "#4285f4" : "#000";
+                          const isViewing = clViewContent?.id === c.id;
+                          return (
+                            <tr key={c.id} className={`hover:bg-gray-50 ${isViewing ? "bg-blue-50" : ""}`}>
+                              <td className="px-3 py-2 font-medium text-gray-900 truncate max-w-[180px]">{c.title || c.slug}</td>
+                              <td className="px-3 py-2 text-center text-gray-500">{CL_TYPES.find(t => t.key === c.content_type)?.label || c.content_type}</td>
+                              <td className="px-3 py-2 text-center">
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: llmClr }} />
+                                  <span className="text-gray-600">{c.llm_provider === "claude" ? "Claude" : c.llm_provider === "gpt" ? "GPT" : c.llm_provider === "gemini" ? "Gemini" : "Grok"}</span>
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-center text-gray-500">{c.generation_ms ? `${(c.generation_ms / 1000).toFixed(1)}s` : "-"}</td>
+                              <td className="px-3 py-2 text-center text-gray-500">{c.char_count?.toLocaleString() || "-"}</td>
+                              <td className="px-3 py-2 text-center">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${c.status === "published" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                                  {c.status === "published" ? "발행" : "초안"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-center text-gray-400">{new Date(c.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                              <td className="px-3 py-2 text-center flex items-center justify-center gap-1">
+                                <button onClick={async () => {
+                                  if (isViewing) { setClViewContent(null); return; }
+                                  try {
+                                    const r = await fetch(`https://nntuztaehnywdbttrajy.supabase.co/rest/v1/bmp_generated_contents?id=eq.${c.id}&select=id,title,slug,content_type,llm_provider,llm_model,status,char_count,body_md,generation_ms`, {
+                                      headers: { "apikey": BAWEE_ANON }
+                                    });
+                                    const rows = await r.json();
+                                    if (rows[0]) setClViewContent(rows[0]);
+                                  } catch {}
+                                }} className={`px-1.5 py-0.5 rounded border text-[10px] ${isViewing ? "bg-blue-600 text-white border-blue-600" : "text-blue-600 hover:bg-blue-50"}`}>
+                                  {isViewing ? "닫기" : "보기"}
+                                </button>
+                                {c.status !== "published" && (
+                                  <button onClick={async () => {
+                                    try {
+                                      await fetch(efBase + "/geobh-content-gen", {
+                                        method: "POST", headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ slug: client, content_type: c.content_type, llm: c.llm_provider, publish: true, title: c.title, custom_slug: c.slug }),
+                                      });
+                                      loadSavedContents();
+                                    } catch {}
+                                  }} className="px-1.5 py-0.5 rounded text-white text-[10px] font-bold" style={{ backgroundColor: color }}>
+                                    발행
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {clSavedContents.length === 0 && (
+                  <div className="text-center py-8 text-gray-400 text-sm">아직 생성된 콘텐츠가 없습니다. 위에서 콘텐츠를 생성해보세요.</div>
+                )}
+
+                {/* Inline Content Viewer */}
+                {clViewContent && (
+                  <div className="mt-4 bg-white rounded-xl border overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: clViewContent.llm_provider === "claude" ? "#d97706" : clViewContent.llm_provider === "gpt" ? "#10a37f" : clViewContent.llm_provider === "gemini" ? "#4285f4" : "#000" }} />
+                        <span className="text-sm font-bold">{clViewContent.title || clViewContent.slug}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${clViewContent.status === "published" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {clViewContent.status === "published" ? "발행됨" : "초안"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <button onClick={() => navigator.clipboard.writeText(clViewContent.body_md || "")}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
+                        <button onClick={() => setClViewContent(null)}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">닫기</button>
+                      </div>
+                    </div>
+                    <div className="p-4 max-h-[500px] overflow-y-auto">
+                      <ContentPreview
+                        content={clViewContent.body_md || ""}
+                        contentType={clViewContent.content_type || "blog"}
+                        color={color}
+                        slug={client}
+                        brandName={hubConfig?.brand_name}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
