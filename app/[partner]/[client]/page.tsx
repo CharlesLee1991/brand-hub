@@ -542,6 +542,174 @@ function AiCommentaryPanel({
   );
 }
 
+/* ────── Content Export/Copy Actions (Phase 3.5) ────── */
+
+function mdToHtml(md: string): string {
+  return md
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/^- (.+)$/gm, "<li>$1</li>")
+    .replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/\n/g, "<br>")
+    .replace(/^/, "<p>").replace(/$/, "</p>")
+    .replace(/<p><h/g, "<h").replace(/<\/h(\d)><\/p>/g, "</h$1>")
+    .replace(/<p><ul>/g, "<ul>").replace(/<\/ul><\/p>/g, "</ul>");
+}
+
+function downloadAsDoc(content: string, title: string) {
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head><meta charset="utf-8"><style>body{font-family:'Malgun Gothic',sans-serif;font-size:11pt;line-height:1.6;max-width:700px;margin:0 auto;padding:40px}h1{font-size:18pt;margin-bottom:12px}h2{font-size:14pt;margin-top:20px;margin-bottom:8px;color:#333}h3{font-size:12pt;margin-top:16px}ul{margin:8px 0}li{margin:4px 0}pre{background:#f5f5f5;padding:12px;border-radius:6px;font-size:9pt;overflow-x:auto}blockquote{border-left:3px solid #ddd;padding-left:12px;color:#666}</style></head>
+<body>${mdToHtml(content)}</body></html>`;
+  const blob = new Blob([html], { type: "application/msword" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `${title.replace(/[^가-힣a-zA-Z0-9\s-]/g, "").slice(0, 50)}.doc`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+function copyAsHtml(content: string) {
+  const html = mdToHtml(content);
+  const blob = new Blob([html], { type: "text/html" });
+  navigator.clipboard.write([new ClipboardItem({ "text/html": blob, "text/plain": new Blob([content], { type: "text/plain" }) })]);
+}
+
+function formatForYoutubeDesc(content: string): string {
+  // Remove timecodes, clean up stage directions, add hashtags
+  let text = content
+    .replace(/\[([^\]]*?)[\s]*\d+:\d+[~\-–—]\d+:\d+\]/g, "▶ $1")
+    .replace(/\(([^)]+)\)/g, "")  // remove stage directions
+    .replace(/^#+ /gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  // Extract potential keywords from content
+  const tags = content.match(/(?:브랜드|패션|디자인|뷰티|리뷰|추천|비교|언박싱|하울)/g);
+  if (tags) text += "\n\n" + Array.from(new Set(tags)).map(t => `#${t}`).join(" ");
+  return text;
+}
+
+function formatForInstaCaption(content: string): string {
+  // Extract slide texts, flatten, add hashtags
+  let text = content
+    .replace(/###\s*\d+장[:\s]*/gi, "")
+    .replace(/^#+ /gm, "")
+    .replace(/\*\*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const hashtagMatch = content.match(/(#[^\s#]+[\s]*){2,}/);
+  if (hashtagMatch) text += "\n\n" + hashtagMatch[0].trim();
+  else text += "\n\n#브랜드 #마케팅";
+  return text;
+}
+
+function formatForNaverBlog(content: string): string {
+  // Convert to simple HTML for Naver blog editor paste
+  return mdToHtml(content);
+}
+
+function formatAdCopySheet(content: string): string {
+  const blocks = content.split(/##\s*배너\s*\d+[:\s]*/i).filter(s => s.trim());
+  let sheet = "=== 광고 배너 카피 시트 ===\n\n";
+  blocks.forEach((block, i) => {
+    const hl = block.match(/헤드라인[:\s]+(.+)/)?.[1]?.trim() || "";
+    const sc = block.match(/서브카피[:\s]+(.+)/)?.[1]?.trim() || "";
+    const cta = block.match(/CTA[^:\n]*[:\s]+(.+)/)?.[1]?.trim() || "";
+    const kw = block.match(/(?:타겟|키워드)[^:\n]*[:\s]+(.+)/)?.[1]?.trim() || "";
+    if (hl) {
+      sheet += `[배너 ${i + 1}]\n헤드라인: ${hl}\n서브카피: ${sc}\nCTA: ${cta}\n키워드: ${kw}\n\n`;
+    }
+  });
+  return sheet.trim();
+}
+
+function ContentActionBar({ content, contentType, title, color }: {
+  content: string; contentType: string; title: string; color: string;
+}) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const flash = (key: string) => { setCopied(key); setTimeout(() => setCopied(null), 1500); };
+  const copyText = (text: string, key: string) => { navigator.clipboard.writeText(text); flash(key); };
+  const copyHtml = (text: string, key: string) => { copyAsHtml(text); flash(key); };
+
+  const channelButtons: { key: string; label: string; icon: string; action: () => void }[] = [];
+
+  switch (contentType) {
+    case "youtube":
+      channelButtons.push(
+        { key: "yt-desc", label: "YouTube 설명란", icon: "▶", action: () => copyText(formatForYoutubeDesc(content), "yt-desc") },
+        { key: "yt-raw", label: "대본 전체", icon: "📝", action: () => copyText(content.replace(/^#+ /gm, ""), "yt-raw") },
+      );
+      break;
+    case "faq":
+      channelButtons.push(
+        { key: "faq-blog", label: "네이버 블로그", icon: "📗", action: () => copyHtml(content, "faq-blog") },
+        { key: "faq-text", label: "Q&A 텍스트만", icon: "💬", action: () => copyText(content.replace(/```json[\s\S]*?```/g, "").trim(), "faq-text") },
+      );
+      break;
+    case "ad":
+      channelButtons.push(
+        { key: "ad-sheet", label: "카피 시트", icon: "📊", action: () => copyText(formatAdCopySheet(content), "ad-sheet") },
+        { key: "ad-hl", label: "헤드라인만", icon: "✏️", action: () => {
+          const hls = Array.from(content.matchAll(/헤드라인[:\s]+(.+)/g)).map(m => m[1].trim());
+          copyText(hls.join("\n"), "ad-hl");
+        }},
+      );
+      break;
+    case "community":
+      channelButtons.push(
+        { key: "insta", label: "인스타 캡션", icon: "📸", action: () => copyText(formatForInstaCaption(content), "insta") },
+        { key: "naver", label: "네이버 블로그", icon: "📗", action: () => copyHtml(content, "naver") },
+      );
+      break;
+    case "social":
+      channelButtons.push(
+        { key: "x-thread", label: "X 쓰레드", icon: "🐦", action: () => copyText(content.replace(/^#+ /gm, "").replace(/\*\*/g, ""), "x-thread") },
+      );
+      break;
+    case "jsonld":
+      channelButtons.push(
+        { key: "jsonld-script", label: "script 태그", icon: "🔗", action: () => {
+          const codes = Array.from(content.matchAll(/```json\n([\s\S]+?)\n```/g)).map(m => m[1].trim());
+          const scripts = codes.map(c => `<script type="application/ld+json">\n${c}\n</script>`).join("\n\n");
+          copyText(scripts, "jsonld-script");
+        }},
+        { key: "jsonld-raw", label: "JSON만", icon: "{ }", action: () => {
+          const codes = Array.from(content.matchAll(/```json\n([\s\S]+?)\n```/g)).map(m => m[1].trim());
+          copyText(codes.join("\n\n"), "jsonld-raw");
+        }},
+      );
+      break;
+    default: // blog
+      channelButtons.push(
+        { key: "blog-html", label: "HTML (서식 포함)", icon: "🌐", action: () => copyHtml(content, "blog-html") },
+        { key: "blog-naver", label: "네이버 블로그", icon: "📗", action: () => copyHtml(content, "blog-naver") },
+      );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap px-4 py-2.5 border-t bg-gray-50/50 text-xs">
+      <span className="text-gray-400 mr-1">내보내기:</span>
+      {channelButtons.map(btn => (
+        <button key={btn.key} onClick={btn.action}
+          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-all ${copied === btn.key ? "bg-green-50 border-green-300 text-green-700" : "hover:bg-white hover:shadow-sm text-gray-600 border-gray-200"}`}>
+          <span>{btn.icon}</span>
+          <span>{copied === btn.key ? "✓ 복사됨" : btn.label}</span>
+        </button>
+      ))}
+      <span className="text-gray-300 mx-0.5">|</span>
+      <button onClick={() => downloadAsDoc(content, title)}
+        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-white hover:shadow-sm text-gray-600">
+        <span>📄</span><span>DOCX 다운</span>
+      </button>
+      <button onClick={() => copyText(content, "raw")}
+        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-all ${copied === "raw" ? "bg-green-50 border-green-300 text-green-700" : "hover:bg-white hover:shadow-sm text-gray-600 border-gray-200"}`}>
+        <span>📋</span><span>{copied === "raw" ? "✓ 복사됨" : "원본 복사"}</span>
+      </button>
+    </div>
+  );
+}
+
 /* ────── Content Preview Components (Phase 3) ────── */
 
 function YouTubePreview({ content, color }: { content: string; color: string }) {
@@ -2086,8 +2254,6 @@ export default function ClientPage() {
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-gray-400">{(clGenResult.elapsed_ms / 1000).toFixed(1)}s · {clGenResult.content?.length?.toLocaleString()}자</span>
-                        <button onClick={() => navigator.clipboard.writeText(clGenResult.content)}
-                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
                         {!clGenResult.published_url && clGenResult.status !== "published" && (
                           <button onClick={async () => {
                             const r = await fetch(efBase + "/geobh-content-gen", {
@@ -2114,6 +2280,12 @@ export default function ClientPage() {
                         brandName={hubConfig?.brand_name}
                       />
                     </div>
+                    <ContentActionBar
+                      content={clGenResult.content}
+                      contentType={clGenResult.content_type || clSelectedType || "blog"}
+                      title={clGenResult.content?.match(/^#\s+(.+)$/m)?.[1] || "콘텐츠"}
+                      color={color}
+                    />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-gray-500">다른 AI 비교:</span>
@@ -2154,8 +2326,6 @@ export default function ClientPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
-                        <button onClick={() => navigator.clipboard.writeText(clViewContent.body_md || "")}
-                          className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
                         <button onClick={() => setClViewContent(null)}
                           className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">✕ 닫기</button>
                       </div>
@@ -2169,6 +2339,12 @@ export default function ClientPage() {
                         brandName={hubConfig?.brand_name}
                       />
                     </div>
+                    <ContentActionBar
+                      content={clViewContent.body_md || ""}
+                      contentType={clViewContent.content_type || "blog"}
+                      title={clViewContent.title || clViewContent.slug || "콘텐츠"}
+                      color={color}
+                    />
                   </div>
                 )}
 
