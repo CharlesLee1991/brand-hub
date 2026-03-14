@@ -541,6 +541,261 @@ function AiCommentaryPanel({
   );
 }
 
+/* ────── Content Preview Components (Phase 3) ────── */
+
+function YouTubePreview({ content, color }: { content: string; color: string }) {
+  const sectionColors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
+  const sections: { name: string; start: string; end: string; body: string; durationSec: number }[] = [];
+  const regex = /\[([^\]]*?)[\s]*(\d+:\d+)[~\-–—](\d+:\d+)\]/g;
+  const parts = content.split(regex);
+  // parts: [before, name, start, end, body, name, start, end, body, ...]
+  for (let i = 1; i + 3 < parts.length; i += 4) {
+    const name = parts[i].trim();
+    const start = parts[i + 1];
+    const end = parts[i + 2];
+    const body = (parts[i + 3] || "").trim();
+    const toSec = (t: string) => { const p = t.split(":").map(Number); return (p[0] || 0) * 60 + (p[1] || 0); };
+    sections.push({ name, start, end, body, durationSec: Math.max(toSec(end) - toSec(start), 1) });
+  }
+  if (sections.length === 0) return <div className="prose prose-sm max-w-none text-gray-800 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_p]:text-[13px] [&_li]:text-[13px] [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px]"><ReactMarkdown>{content}</ReactMarkdown></div>;
+  const totalSec = sections.reduce((s, x) => s + x.durationSec, 0);
+  const fmtDur = (s: number) => s >= 60 ? `${Math.floor(s / 60)}분 ${s % 60}초` : `${s}초`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-red-500 text-lg">▶</span>
+        <span className="font-bold">YouTube 대본 미리보기</span>
+        <span className="text-xs text-gray-400 ml-auto">총 {Math.floor(totalSec / 60)}:{String(totalSec % 60).padStart(2, "0")} | {sections.length}개 섹션</span>
+      </div>
+      <div className="h-1.5 bg-gray-200 rounded-full flex overflow-hidden">
+        {sections.map((s, i) => (
+          <div key={i} className="h-full" style={{ width: `${(s.durationSec / totalSec) * 100}%`, backgroundColor: sectionColors[i % sectionColors.length] }} />
+        ))}
+      </div>
+      {sections.map((s, i) => (
+        <div key={i} className="border rounded-xl p-4 hover:shadow-sm transition-all">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-gray-100">{s.start}</span>
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: sectionColors[i % sectionColors.length] }} />
+            <span className="text-sm font-bold">{s.name}</span>
+            <span className="text-xs text-gray-400 ml-auto">{fmtDur(s.durationSec)}</span>
+          </div>
+          <div className="text-[12.5px] text-gray-600 leading-relaxed whitespace-pre-wrap">{s.body.slice(0, 500)}{s.body.length > 500 ? "…" : ""}</div>
+        </div>
+      ))}
+      <div className="text-xs text-gray-400 text-center">📊 총 {fmtDur(totalSec)} | {sections.length}개 섹션 | {content.length.toLocaleString()}자</div>
+    </div>
+  );
+}
+
+function FaqPreview({ content, color }: { content: string; color: string }) {
+  const [openIdx, setOpenIdx] = useState<number | null>(0);
+  const faqRegex = /##\s*Q\d*[:\s]*(.+?)[\n\r]+(?:A[:\s]*)([\s\S]+?)(?=##\s*Q|\n```|\n---|$)/gi;
+  const faqs: { q: string; a: string }[] = [];
+  let m; while ((m = faqRegex.exec(content)) !== null) faqs.push({ q: m[1].trim(), a: m[2].trim() });
+  const jsonMatch = content.match(/```json\n([\s\S]+?)\n```/);
+  const jsonLd = jsonMatch?.[1]?.trim();
+  if (faqs.length === 0) return <div className="prose prose-sm max-w-none text-gray-800 [&_h2]:text-sm [&_h2]:font-bold [&_p]:text-[13px] [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px]"><ReactMarkdown>{content}</ReactMarkdown></div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm mb-1">
+        <span className="text-lg">❓</span><span className="font-bold">FAQ 미리보기</span>
+        <span className="text-xs text-gray-400 ml-auto">{faqs.length}개 질문</span>
+      </div>
+      {faqs.map((faq, i) => (
+        <button key={i} onClick={() => setOpenIdx(openIdx === i ? null : i)} className="w-full text-left border rounded-xl overflow-hidden hover:shadow-sm transition-all">
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+            <span className="text-sm font-medium">{faq.q}</span>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${openIdx === i ? "rotate-180" : ""}`} />
+          </div>
+          {openIdx === i && <div className="px-4 py-3 text-sm text-gray-600 border-t leading-relaxed whitespace-pre-wrap">{faq.a}</div>}
+        </button>
+      ))}
+      {jsonLd && (
+        <div className="rounded-xl overflow-hidden border">
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-gray-400 text-xs">
+            <span>📋 FAQPage JSON-LD</span>
+            <div className="flex gap-2">
+              {(() => { try { JSON.parse(jsonLd); return <span className="text-green-400">✅ JSON 유효</span>; } catch { return <span className="text-red-400">❌ JSON 오류</span>; } })()}
+              <button onClick={() => navigator.clipboard.writeText(`<script type="application/ld+json">\n${jsonLd}\n</script>`)} className="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-green-400">복사</button>
+            </div>
+          </div>
+          <pre className="p-4 bg-gray-950 text-green-400 text-[11px] overflow-x-auto max-h-[200px]">{(() => { try { return JSON.stringify(JSON.parse(jsonLd), null, 2); } catch { return jsonLd; } })()}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdBannerPreview({ content, color }: { content: string; color: string }) {
+  const gradients = ["from-purple-600 to-pink-500", "from-blue-600 to-cyan-500", "from-amber-500 to-orange-600", "from-rose-500 to-red-600"];
+  const blocks = content.split(/##\s*배너\s*\d+[:\s]*/i).filter(s => s.trim());
+  const banners = blocks.map(block => ({
+    headline: block.match(/헤드라인[:\s]+(.+)/)?.[1]?.trim() || "",
+    subcopy: block.match(/서브카피[:\s]+(.+)/)?.[1]?.trim() || "",
+    cta: block.match(/CTA[^:\n]*[:\s]+(.+)/)?.[1]?.trim() || "자세히 보기",
+    strategy: block.match(/(?:전략|설명)[^:\n]*[:\s]+(.+)/)?.[1]?.trim() || "",
+  })).filter(b => b.headline);
+  if (banners.length === 0) return <div className="prose prose-sm max-w-none text-gray-800 [&_h2]:text-sm [&_h2]:font-bold [&_p]:text-[13px]"><ReactMarkdown>{content}</ReactMarkdown></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-lg">📢</span><span className="font-bold">광고 배너 미리보기</span>
+        <span className="text-xs text-gray-400 ml-auto">{banners.length}종</span>
+      </div>
+      <div className={`grid gap-3 ${banners.length >= 3 ? "grid-cols-3" : banners.length === 2 ? "grid-cols-2" : "grid-cols-1 max-w-[200px]"}`}>
+        {banners.map((b, i) => (
+          <div key={i} className={`rounded-xl p-5 text-white bg-gradient-to-br ${gradients[i % gradients.length]} flex flex-col justify-between aspect-[4/5] shadow-lg`}>
+            <div>
+              <p className="text-base font-black leading-tight drop-shadow">{b.headline}</p>
+              <p className="text-xs opacity-80 mt-2 leading-relaxed">{b.subcopy}</p>
+            </div>
+            <div className="mt-3 px-3 py-2 bg-white/20 backdrop-blur-sm rounded-lg text-xs font-bold text-center">{b.cta}</div>
+          </div>
+        ))}
+      </div>
+      {banners[0]?.strategy && <p className="text-xs text-gray-500">📊 전략: {banners[0].strategy}</p>}
+    </div>
+  );
+}
+
+function SocialPreview({ content, color }: { content: string; color: string }) {
+  const [current, setCurrent] = useState(0);
+  const slideRegex = /###\s*(\d+)장[:\s]*(.*)/gi;
+  const splitParts = content.split(slideRegex).filter(s => s.trim());
+  const slides: { num: string; title: string; body: string }[] = [];
+  for (let i = 0; i + 2 < splitParts.length; i += 3) {
+    slides.push({ num: splitParts[i], title: splitParts[i + 1].trim(), body: splitParts[i + 2].trim() });
+  }
+  const hashtagMatch = content.match(/(#[^\s#]+[\s]*){2,}/);
+  const hashtags = hashtagMatch?.[0]?.trim() || "";
+  if (slides.length === 0) return <div className="prose prose-sm max-w-none text-gray-800 [&_h3]:text-[13px] [&_h3]:font-bold [&_p]:text-[13px]"><ReactMarkdown>{content}</ReactMarkdown></div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm mb-1">
+        <span className="text-lg">📱</span><span className="font-bold">인스타그램 카드뉴스</span>
+        <span className="text-xs text-gray-400 ml-auto">{slides.length}장</span>
+      </div>
+      <div className="max-w-[300px] mx-auto">
+        <div className="bg-white rounded-2xl border-2 border-gray-200 overflow-hidden shadow-lg">
+          <div className="flex items-center gap-2 px-3 py-2 border-b">
+            <div className="w-6 h-6 rounded-full" style={{ backgroundColor: color }} />
+            <span className="text-xs font-bold text-gray-700">brand_official</span>
+            <span className="text-[10px] text-blue-500 ml-auto">팔로우</span>
+          </div>
+          <div className="aspect-square flex items-center justify-center p-6" style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }}>
+            <div className="text-white text-center space-y-2">
+              <p className="text-lg font-black leading-tight">{slides[current]?.title}</p>
+              <div className="text-xs opacity-90 leading-relaxed whitespace-pre-wrap">{slides[current]?.body.slice(0, 200)}{(slides[current]?.body.length || 0) > 200 ? "…" : ""}</div>
+            </div>
+          </div>
+          <div className="flex justify-center gap-1 py-2">
+            {slides.map((_, i) => (
+              <button key={i} onClick={() => setCurrent(i)} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === current ? "bg-blue-500" : "bg-gray-300"}`} />
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-500 px-1">
+          <button onClick={() => setCurrent(Math.max(0, current - 1))} className="hover:text-gray-700">◀ 이전</button>
+          <span>{current + 1} / {slides.length}장</span>
+          <button onClick={() => setCurrent(Math.min(slides.length - 1, current + 1))} className="hover:text-gray-700">다음 ▶</button>
+        </div>
+      </div>
+      {hashtags && <p className="text-xs text-blue-500 text-center">{hashtags}</p>}
+    </div>
+  );
+}
+
+function JsonLdPreview({ content, color }: { content: string; color: string }) {
+  const codeBlocks = Array.from(content.matchAll(/```json\n([\s\S]+?)\n```/g)).map(m => m[1].trim());
+  const titles = Array.from(content.matchAll(/##\s*(.+?)(?:\n|$)/g)).map(m => m[1].trim());
+  if (codeBlocks.length === 0) return <div className="prose prose-sm max-w-none text-gray-800 [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px]"><ReactMarkdown>{content}</ReactMarkdown></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-lg">🔗</span><span className="font-bold">JSON-LD Schema 미리보기</span>
+        <span className="text-xs text-gray-400 ml-auto">{codeBlocks.length}개 스키마</span>
+      </div>
+      {codeBlocks.map((code, i) => {
+        let isValid = false;
+        let formatted = code;
+        try { formatted = JSON.stringify(JSON.parse(code), null, 2); isValid = true; } catch {}
+        return (
+          <div key={i} className="rounded-xl overflow-hidden border">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-900">
+              <span className="text-xs text-gray-400">{titles[i] || `Schema ${i + 1}`}</span>
+              <div className="flex gap-2 text-xs">
+                <span className={isValid ? "text-green-400" : "text-red-400"}>{isValid ? "✅ JSON 유효" : "❌ JSON 오류"}</span>
+                <button onClick={() => navigator.clipboard.writeText(`<script type="application/ld+json">\n${formatted}\n</script>`)} className="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-green-400">📋 복사</button>
+                <button onClick={() => window.open("https://validator.schema.org", "_blank")} className="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-blue-400">🔍 검증</button>
+              </div>
+            </div>
+            <pre className="p-4 bg-gray-950 text-green-400 text-[11px] overflow-x-auto max-h-[300px]">{formatted}</pre>
+          </div>
+        );
+      })}
+      <div className="p-3 bg-blue-50 rounded-xl text-xs text-blue-700">
+        💡 <strong>적용 방법:</strong> 위 코드를 {"<head>"} 태그 안에 {"<script type=\"application/ld+json\">"} 블록으로 추가하세요. &quot;📋 복사&quot; 버튼으로 완전한 script 태그가 복사됩니다.
+      </div>
+    </div>
+  );
+}
+
+function BlogPreview({ content, color, slug, brandName }: { content: string; color: string; slug?: string; brandName?: string }) {
+  const titleMatch = content.match(/^#\s+(.+)$/m);
+  const title = titleMatch?.[1] || "제목 없음";
+  const descMatch = content.match(/^(?!#)(.{20,})/m);
+  const description = descMatch?.[1]?.slice(0, 160) || "";
+
+  return (
+    <div className="space-y-3">
+      <div className="border rounded-xl p-4 bg-white">
+        <p className="text-xs text-gray-400 mb-1">🔍 Google 검색 미리보기</p>
+        <p className="text-blue-600 text-sm font-medium">{title}{brandName ? ` — ${brandName}` : ""}</p>
+        <p className="text-green-700 text-xs">{slug ? `${slug}.bmp.ai/content/...` : "bmp.ai/content/..."}</p>
+        <p className="text-xs text-gray-600 mt-1 line-clamp-2">{description}...</p>
+      </div>
+      <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed
+        [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2
+        [&_h3]:text-[13px] [&_h3]:font-bold [&_p]:text-[13px] [&_li]:text-[13px]
+        [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto
+        [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px]">
+        <ReactMarkdown>{content}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+function ContentPreview({ content, contentType, color, slug, brandName }: { content: string; contentType: string; color: string; slug?: string; brandName?: string }) {
+  // Each preview returns null if parsing fails → fallback to markdown
+  const previewMap: Record<string, React.ReactNode> = {
+    youtube: <YouTubePreview content={content} color={color} />,
+    faq: <FaqPreview content={content} color={color} />,
+    ad: <AdBannerPreview content={content} color={color} />,
+    community: <SocialPreview content={content} color={color} />,
+    jsonld: <JsonLdPreview content={content} color={color} />,
+    blog: <BlogPreview content={content} color={color} slug={slug} brandName={brandName} />,
+  };
+  const preview = previewMap[contentType];
+  if (preview) return <>{preview}</>;
+
+  // Default: plain markdown
+  return (
+    <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed
+      [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2
+      [&_h3]:text-[13px] [&_h3]:font-bold [&_p]:text-[13px] [&_li]:text-[13px]
+      [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto
+      [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px]">
+      <ReactMarkdown>{content}</ReactMarkdown>
+    </div>
+  );
+}
+
 /* ────── Main Page Component ────── */
 export default function ClientPage() {
   const { partner, client } = useParams() as { partner: string; client: string };
@@ -1835,14 +2090,14 @@ export default function ClientPage() {
                         )}
                       </div>
                     </div>
-                    <div className="p-4 max-h-[400px] overflow-y-auto">
-                      <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed
-                        [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2
-                        [&_h3]:text-[13px] [&_h3]:font-bold [&_p]:text-[13px] [&_li]:text-[13px]
-                        [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto
-                        [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px]">
-                        <ReactMarkdown>{clGenResult.content}</ReactMarkdown>
-                      </div>
+                    <div className="p-4 max-h-[500px] overflow-y-auto">
+                      <ContentPreview
+                        content={clGenResult.content}
+                        contentType={clGenResult.content_type || clSelectedType || "blog"}
+                        color={color}
+                        slug={client}
+                        brandName={hubConfig?.brand_name}
+                      />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
