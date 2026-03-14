@@ -32,6 +32,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { createClient } from "@/lib/supabase-browser";
 
 /* ────── Types ────── */
 interface HubConfig {
@@ -857,13 +858,15 @@ export default function ClientPage() {
   const [clViewContent, setClViewContent] = useState<any>(null);
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
-  const BAWEE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5udHV6dGFlaG55d2RidHRyYWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5ODg3MzEsImV4cCI6MjA2MzU2NDczMX0.aBbYy3BC89e-x1EMj4bVfan9MFIV3R6M6cKpNjJIDu0";
+  const supabaseClient = createClient();
   const loadSavedContents = async () => {
     try {
-      const r = await fetch(`https://nntuztaehnywdbttrajy.supabase.co/rest/v1/bmp_generated_contents?hub_slug=eq.${client}&select=id,title,slug,content_type,llm_provider,llm_model,status,char_count,generation_ms,created_at&order=created_at.desc&limit=50`, {
-        headers: { "apikey": BAWEE_ANON }
-      });
-      setClSavedContents(await r.json());
+      const { data } = await supabaseClient.from("bmp_generated_contents")
+        .select("id,title,slug,content_type,llm_provider,llm_model,status,char_count,generation_ms,created_at")
+        .eq("hub_slug", client)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (data) setClSavedContents(data);
     } catch {}
   };
 
@@ -2180,11 +2183,11 @@ export default function ClientPage() {
                                 <button onClick={async () => {
                                   if (isViewing) { setClViewContent(null); return; }
                                   try {
-                                    const r = await fetch(`https://nntuztaehnywdbttrajy.supabase.co/rest/v1/bmp_generated_contents?id=eq.${c.id}&select=id,title,slug,content_type,llm_provider,llm_model,status,char_count,body_md,generation_ms`, {
-                                      headers: { "apikey": BAWEE_ANON }
-                                    });
-                                    const rows = await r.json();
-                                    if (rows[0]) setClViewContent(rows[0]);
+                                    const { data: rows } = await supabaseClient.from("bmp_generated_contents")
+                                      .select("id,title,slug,content_type,llm_provider,llm_model,status,char_count,body_md,generation_ms")
+                                      .eq("id", c.id)
+                                      .limit(1);
+                                    if (rows?.[0]) setClViewContent(rows[0]);
                                   } catch {}
                                 }} className={`px-1.5 py-0.5 rounded border text-[10px] ${isViewing ? "bg-blue-600 text-white border-blue-600" : "text-blue-600 hover:bg-blue-50"}`}>
                                   {isViewing ? "닫기" : "보기"}
