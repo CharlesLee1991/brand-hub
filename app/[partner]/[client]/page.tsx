@@ -2306,12 +2306,31 @@ export default function ClientPage() {
               )}
 
               {/* Content History from DB (auto-loaded) */}
+              {(() => {
+                const filteredContents = clSelectedType
+                  ? clSavedContents.filter((c: any) => c.content_type === clSelectedType)
+                  : clSavedContents;
+                const filterLabel = clSelectedType ? CL_TYPES.find(t => t.key === clSelectedType)?.label || clSelectedType : null;
+                return (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold text-gray-700">📁 콘텐츠 이력 {clSavedContents.length > 0 ? `(${clSavedContents.length}건)` : ""}</h4>
-                  <button onClick={loadSavedContents} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                    <RefreshCw className="w-3 h-3" /> 새로고침
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-gray-700">📁 콘텐츠 이력 {filteredContents.length > 0 ? `(${filteredContents.length}건)` : ""}</h4>
+                    {filterLabel && (
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border" style={{ borderColor: color, color }}>
+                        {filterLabel}
+                        <button onClick={() => setClSelectedType(null)} className="ml-0.5 hover:opacity-70">✕</button>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {filterLabel && (
+                      <button onClick={() => setClSelectedType(null)} className="text-xs text-gray-500 hover:underline">전체 보기</button>
+                    )}
+                    <button onClick={loadSavedContents} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3" /> 새로고침
+                    </button>
+                  </div>
                 </div>
 
                 {/* Inline Content Viewer — 테이블 위 표시 */}
@@ -2348,7 +2367,7 @@ export default function ClientPage() {
                   </div>
                 )}
 
-                {clSavedContents.length > 0 && (
+                {filteredContents.length > 0 && (
                   <div className="bg-white rounded-xl border overflow-hidden">
                     <table className="w-full text-xs">
                       <thead className="bg-gray-50 text-gray-500">
@@ -2364,7 +2383,7 @@ export default function ClientPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {clSavedContents.map((c: any) => {
+                        {filteredContents.map((c: any) => {
                           const llmClr = c.llm_provider === "claude" ? "#d97706" : c.llm_provider === "gpt" ? "#10a37f" : c.llm_provider === "gemini" ? "#4285f4" : "#000";
                           const isViewing = clViewContent?.id === c.id;
                           return (
@@ -2427,10 +2446,17 @@ export default function ClientPage() {
                   </div>
                 )}
 
+                {filteredContents.length === 0 && clSavedContents.length > 0 && (
+                  <div className="text-center py-6 text-gray-400 text-sm">
+                    선택한 유형({filterLabel})의 콘텐츠가 없습니다.
+                    <button onClick={() => setClSelectedType(null)} className="ml-2 text-blue-500 hover:underline">전체 보기</button>
+                  </div>
+                )}
                 {clSavedContents.length === 0 && (
                   <div className="text-center py-8 text-gray-400 text-sm">아직 생성된 콘텐츠가 없습니다. 위에서 콘텐츠를 생성해보세요.</div>
                 )}
               </div>
+                ); })()}
             </div>
             )} {/* close generate mode */}
           </div>
