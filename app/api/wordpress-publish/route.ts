@@ -47,9 +47,9 @@ export async function POST(req: NextRequest) {
     const htmlContent = content_html || mdToHtml(content_md);
     const postTitle = title || "bmp.ai 콘텐츠";
 
-    // Create post via WordPress.com REST API
+    // Create post via WordPress.com REST API v1.2 (posts scope)
     const wpRes = await fetch(
-      `https://public-api.wordpress.com/wp/v2/sites/${conn.blog_id}/posts`,
+      `https://public-api.wordpress.com/rest/v1.2/sites/${conn.blog_id}/posts/new`,
       {
         method: "POST",
         headers: {
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const wpPost = await wpRes.json();
+    // v1.2 API returns { ID, URL, status, title, ... }
 
     // Update bmp_generated_contents if content_id provided
     if (content_id) {
@@ -87,8 +88,8 @@ export async function POST(req: NextRequest) {
         .update({
           metadata: {
             wp_published: {
-              post_id: wpPost.id,
-              url: wpPost.link,
+              post_id: wpPost.ID,
+              url: wpPost.URL,
               site: conn.site_url,
               published_at: new Date().toISOString(),
             }
@@ -100,9 +101,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      wp_post_id: wpPost.id,
-      wp_url: wpPost.link,
-      wp_edit_url: `https://wordpress.com/post/${conn.blog_id}/${wpPost.id}`,
+      wp_post_id: wpPost.ID,
+      wp_url: wpPost.URL,
+      wp_edit_url: `https://wordpress.com/post/${conn.blog_id}/${wpPost.ID}`,
       wp_status: wpPost.status,
       site_url: conn.site_url,
     });
