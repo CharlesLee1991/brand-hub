@@ -1078,6 +1078,8 @@ export default function ClientPage() {
   const [clImproveLlm, setClImproveLlm] = useState<"claude" | "gpt">("claude");
   const [clSavedContents, setClSavedContents] = useState<any[]>([]);
   const [clViewContent, setClViewContent] = useState<any>(null);
+  const [clSavedImproves, setClSavedImproves] = useState<any[]>([]);
+  const [clViewImprove, setClViewImprove] = useState<any>(null);
 
   // WordPress CMS connection state
   const [wpConnection, setWpConnection] = useState<any>(null);
@@ -1144,15 +1146,49 @@ export default function ClientPage() {
       const { data } = await supabaseClient.from("bmp_generated_contents")
         .select("id,title,slug,content_type,llm_provider,llm_model,status,char_count,generation_ms,created_at")
         .eq("hub_slug", client)
+        .neq("content_type", "improve")
         .order("created_at", { ascending: false })
         .limit(50);
       if (data) setClSavedContents(data);
     } catch {}
   };
 
+  const loadSavedImproves = async () => {
+    try {
+      const { data } = await supabaseClient.from("bmp_generated_contents")
+        .select("id,title,slug,content_type,llm_provider,llm_model,status,char_count,body_md,generation_ms,created_at,metadata")
+        .eq("hub_slug", client)
+        .eq("content_type", "improve")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) setClSavedImproves(data);
+    } catch {}
+  };
+
+  const saveImproveResult = async (result: any, llm: string) => {
+    if (!result?.success || !result?.improvements) return;
+    try {
+      await supabaseClient.from("bmp_generated_contents").insert({
+        hub_slug: client,
+        partner_slug: partner,
+        content_type: "improve",
+        title: `페이지 개선 분석 — ${llm === "claude" ? "Claude" : "GPT-4o"} (${result.page_count || 0}페이지)`,
+        slug: `improve-${llm}-${Date.now()}`,
+        body_md: result.improvements,
+        llm_provider: llm,
+        llm_model: result.llm_name || llm,
+        generation_ms: result.elapsed_ms || 0,
+        char_count: result.improvements?.length || 0,
+        status: "draft",
+        metadata: { page_count: result.page_count, llm_focus: result.llm_focus },
+      });
+      loadSavedImproves();
+    } catch (e) { console.error("Save improve error:", e); }
+  };
+
   // Auto-load saved contents when contentlab tab opens
   useEffect(() => {
-    if (activeSection === "contentlab" && client) loadSavedContents();
+    if (activeSection === "contentlab" && client) { loadSavedContents(); loadSavedImproves(); }
   }, [activeSection, client]);
 
   // Analysis status & trigger
@@ -2237,7 +2273,9 @@ export default function ClientPage() {
                           method: "POST", headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ slug: client, llm: clImproveLlm, limit: 10 }),
                         });
-                        setClImproveResult(await r.json());
+                        const result = await r.json();
+                        setClImproveResult(result);
+                        if (result.success) saveImproveResult(result, clImproveLlm);
                       } catch {}
                       setClImproveLoading(false);
                     }} disabled={clImproveLoading}
@@ -2305,6 +2343,109 @@ export default function ClientPage() {
                   {clImproveResult && !clImproveResult.success && (
                     <div className="bg-red-50 rounded-xl border border-red-200 p-4">
                       <p className="text-sm text-red-700">오류: {clImproveResult.error}</p>
+                    </div>
+                  )}
+
+                  {/* ── 저장된 개선 분석 이력 ── */}
+                  {clSavedImproves.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-gray-700">이전 분석 이력</h4>
+                        <button onClick={loadSavedImproves} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3" /> 새로고침
+                        </button>
+                      </div>
+
+                      {/* 상세 뷰 */}
+                      {clViewImprove && (
+                        <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+                          <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: clViewImprove.llm_provider === "claude" ? "#d97706" : "#10a37f" }} />
+                              <span className="text-sm font-bold">{clViewImprove.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-gray-400">{new Date(clViewImprove.created_at).toLocaleDateString("ko-KR")} {new Date(clViewImprove.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>
+                              <button onClick={() => { navigator.clipboard.writeText(clViewImprove.body_md || ""); }}
+                                className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
+                              <button onClick={() => setClViewImprove(null)}
+                                className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">✕ 닫기</button>
+                            </div>
+                          </div>
+                          <div className="max-h-[60vh] overflow-y-auto p-5 text-[12.5px] text-gray-700 leading-relaxed
+                            [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-gray-900 [&_h1]:mt-6 [&_h1]:mb-3
+                            [&_h2]:text-sm [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:pb-1.5 [&_h2]:border-b [&_h2]:border-gray-100
+                            [&_h3]:text-[12.5px] [&_h3]:font-bold [&_h3]:text-gray-800 [&_h3]:mt-3 [&_h3]:mb-1
+                            [&_p]:my-1.5 [&_li]:text-[12px] [&_li]:leading-relaxed
+                            [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4
+                            [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto
+                            [&_strong]:text-gray-900">
+                            <ReactMarkdown>{clViewImprove.body_md || ""}</ReactMarkdown>
+                          </div>
+                          <ContentActionBar
+                            content={clViewImprove.body_md || ""}
+                            contentType="improve"
+                            title={clViewImprove.title || "개선 분석"}
+                            color={color}
+                            wpConnection={wpConnection}
+                            wpPublishing={wpPublishing}
+                            onWpPublish={() => publishToWordPress(
+                              clViewImprove.title || "페이지 개선 분석",
+                              clViewImprove.body_md || "",
+                              clViewImprove.id
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {/* 리스트 */}
+                      <div className="bg-white rounded-xl border overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 border-b text-gray-500">
+                              <th className="px-3 py-2 text-left font-medium">날짜</th>
+                              <th className="px-3 py-2 text-left font-medium">AI</th>
+                              <th className="px-3 py-2 text-center font-medium">페이지</th>
+                              <th className="px-3 py-2 text-center font-medium">소요</th>
+                              <th className="px-3 py-2 text-center font-medium">분량</th>
+                              <th className="px-3 py-2 text-center font-medium">액션</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {clSavedImproves.map((item: any) => (
+                              <tr key={item.id} className="border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  if (clViewImprove?.id === item.id) { setClViewImprove(null); return; }
+                                  if (!item.body_md) {
+                                    supabaseClient.from("bmp_generated_contents")
+                                      .select("id,title,body_md,llm_provider,created_at,metadata")
+                                      .eq("id", item.id).single().then(({ data }) => { if (data) setClViewImprove(data); });
+                                  } else { setClViewImprove(item); }
+                                }}>
+                                <td className="px-3 py-2.5 text-gray-600">
+                                  {new Date(item.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                                  {" "}
+                                  {new Date(item.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                                </td>
+                                <td className="px-3 py-2.5">
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.llm_provider === "claude" ? "#d97706" : "#10a37f" }} />
+                                    {item.llm_provider === "claude" ? "Claude" : "GPT-4o"}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-center text-gray-500">{item.metadata?.page_count || "-"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-500">{item.generation_ms ? (item.generation_ms / 1000).toFixed(1) + "s" : "-"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-500">{item.char_count?.toLocaleString() || "-"}자</td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${clViewImprove?.id === item.id ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                                    {clViewImprove?.id === item.id ? "보는 중" : "보기"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
