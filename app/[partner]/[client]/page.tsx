@@ -605,8 +605,45 @@ function formatForInstaCaption(content: string): string {
 }
 
 function formatForNaverBlog(content: string): string {
-  // Convert to simple HTML for Naver blog editor paste
-  return mdToHtml(content);
+  // Naver blog editor compatible — inline styles, no classes
+  const html = mdToHtml(content);
+  return html
+    .replace(/<h1>/g, '<h1 style="font-size:24px;font-weight:bold;margin:20px 0 12px;color:#333">')
+    .replace(/<h2>/g, '<h2 style="font-size:20px;font-weight:bold;margin:18px 0 10px;color:#444">')
+    .replace(/<h3>/g, '<h3 style="font-size:17px;font-weight:bold;margin:14px 0 8px;color:#555">')
+    .replace(/<p>/g, '<p style="font-size:15px;line-height:1.8;margin:8px 0;color:#333">')
+    .replace(/<strong>/g, '<strong style="font-weight:bold;color:#222">')
+    .replace(/<ul>/g, '<ul style="margin:10px 0;padding-left:24px">')
+    .replace(/<li>/g, '<li style="font-size:15px;line-height:1.7;margin:4px 0">');
+}
+
+function formatForTistoryHtml(content: string): string {
+  // Tistory editor compatible — similar to Naver but with data attributes
+  const html = mdToHtml(content);
+  return html
+    .replace(/<h1>/g, '<h1 style="font-size:24px;font-weight:700;margin:24px 0 12px;color:#1a1a1a">')
+    .replace(/<h2>/g, '<h2 style="font-size:20px;font-weight:700;margin:20px 0 10px;color:#2a2a2a">')
+    .replace(/<h3>/g, '<h3 style="font-size:17px;font-weight:600;margin:16px 0 8px;color:#3a3a3a">')
+    .replace(/<p>/g, '<p style="font-size:16px;line-height:1.8;margin:10px 0;color:#333">')
+    .replace(/<ul>/g, '<ul style="margin:12px 0;padding-left:28px">')
+    .replace(/<li>/g, '<li style="font-size:16px;line-height:1.7;margin:5px 0">');
+}
+
+function formatForWordPressHtml(content: string): string {
+  // WordPress Gutenberg compatible — wp:paragraph blocks
+  const html = mdToHtml(content);
+  return html
+    .replace(/<h2>(.*?)<\/h2>/g, '<!-- wp:heading {"level":2} -->\n<h2 class="wp-block-heading">$1</h2>\n<!-- /wp:heading -->')
+    .replace(/<h3>(.*?)<\/h3>/g, '<!-- wp:heading {"level":3} -->\n<h3 class="wp-block-heading">$1</h3>\n<!-- /wp:heading -->')
+    .replace(/<p>(.*?)<\/p>/g, '<!-- wp:paragraph -->\n<p>$1</p>\n<!-- /wp:paragraph -->')
+    .replace(/<ul>([\s\S]*?)<\/ul>/g, '<!-- wp:list -->\n<ul class="wp-block-list">$1</ul>\n<!-- /wp:list -->');
+}
+
+function copyRichHtml(html: string, key: string, flash: (k: string) => void) {
+  const blob = new Blob([html], { type: "text/html" });
+  const plainBlob = new Blob([html.replace(/<[^>]*>/g, "")], { type: "text/plain" });
+  navigator.clipboard.write([new ClipboardItem({ "text/html": blob, "text/plain": plainBlob })]);
+  flash(key);
 }
 
 function formatAdCopySheet(content: string): string {
@@ -644,7 +681,6 @@ function ContentActionBar({ content, contentType, title, color, wpConnection, on
       break;
     case "faq":
       channelButtons.push(
-        { key: "faq-blog", label: "네이버 블로그", icon: "📗", action: () => copyHtml(content, "faq-blog") },
         { key: "faq-text", label: "Q&A 텍스트만", icon: "💬", action: () => copyText(content.replace(/```json[\s\S]*?```/g, "").trim(), "faq-text") },
       );
       break;
@@ -660,7 +696,6 @@ function ContentActionBar({ content, contentType, title, color, wpConnection, on
     case "community":
       channelButtons.push(
         { key: "insta", label: "인스타 캡션", icon: "📸", action: () => copyText(formatForInstaCaption(content), "insta") },
-        { key: "naver", label: "네이버 블로그", icon: "📗", action: () => copyHtml(content, "naver") },
       );
       break;
     case "social":
@@ -683,9 +718,17 @@ function ContentActionBar({ content, contentType, title, color, wpConnection, on
       break;
     default: // blog
       channelButtons.push(
-        { key: "blog-html", label: "HTML (서식 포함)", icon: "🌐", action: () => copyHtml(content, "blog-html") },
-        { key: "blog-naver", label: "네이버 블로그", icon: "📗", action: () => copyHtml(content, "blog-naver") },
+        { key: "blog-html", label: "HTML (서식)", icon: "🌐", action: () => copyHtml(content, "blog-html") },
       );
+  }
+
+  // Cross-channel rich HTML copy buttons (all text-based types)
+  if (contentType !== "jsonld") {
+    channelButtons.push(
+      { key: "ch-naver", label: "네이버용", icon: "📗", action: () => copyRichHtml(formatForNaverBlog(content), "ch-naver", flash) },
+      { key: "ch-tistory", label: "티스토리용", icon: "📘", action: () => copyRichHtml(formatForTistoryHtml(content), "ch-tistory", flash) },
+      { key: "ch-wp", label: "WordPress용", icon: "🔵", action: () => { navigator.clipboard.writeText(formatForWordPressHtml(content)); flash("ch-wp"); } },
+    );
   }
 
   return (
@@ -2446,6 +2489,12 @@ export default function ClientPage() {
                       </div>
                     </div>
                     <div className="p-4 max-h-[500px] overflow-y-auto">
+                      {clViewContent.status !== "published" && (
+                        <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs flex items-center gap-2">
+                          <span>🔒</span>
+                          <span>비공개 미리보기 — 발행 전에는 외부에서 접근할 수 없습니다</span>
+                        </div>
+                      )}
                       <ContentPreview
                         content={clViewContent.body_md || ""}
                         contentType={clViewContent.content_type || "blog"}
