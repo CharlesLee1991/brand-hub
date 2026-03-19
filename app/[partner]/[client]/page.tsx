@@ -2227,24 +2227,30 @@ export default function ClientPage() {
               </div>
 
               {/* WordPress Connection Banner */}
-              <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs ${wpConnection ? "bg-blue-50/50 border-blue-200" : "bg-gray-50 border-gray-200"}`}>
-                <div className="flex items-center gap-2">
-                  <span>{wpConnection ? "🌐" : "🔗"}</span>
-                  {wpConnection ? (
-                    <span className="text-blue-700 font-medium">WordPress 연동됨 — {wpConnection.site_url || wpConnection.blog_url || "연결됨"}</span>
-                  ) : (
-                    <span className="text-gray-500">WordPress 연동 시 AI 콘텐츠를 사이트에 바로 발행할 수 있습니다</span>
-                  )}
+              {wpConnection ? (
+                <div className="flex items-center justify-between px-4 py-2 rounded-xl border bg-blue-50/30 border-blue-100 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="text-gray-600">WordPress 연동됨</span>
+                    <span className="text-blue-600 font-medium">{(wpConnection.site_url || "").replace(/^https?:\/\//, "")}</span>
+                  </div>
+                  <button onClick={() => window.open(`https://wordpress.com/posts/${wpConnection.blog_id}`, "_blank")}
+                    className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all">
+                    연동 확인 ↗
+                  </button>
                 </div>
-                {wpConnection ? (
-                  <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-bold text-[10px]">연동 완료</span>
-                ) : (
+              ) : (
+                <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border bg-gray-50 border-gray-200 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span>🔗</span>
+                    <span className="text-gray-500">WordPress 연동 시 AI 콘텐츠를 사이트에 바로 발행할 수 있습니다</span>
+                  </div>
                   <button onClick={connectWordPress}
                     className="px-3 py-1.5 rounded-lg border border-blue-300 bg-white text-blue-600 font-medium hover:bg-blue-50 transition-all">
                     WordPress 연동
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* ── PAGE IMPROVE MODE ── */}
               {clMode === "improve" && (
