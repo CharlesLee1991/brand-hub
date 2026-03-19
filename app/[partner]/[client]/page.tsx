@@ -624,8 +624,9 @@ function formatAdCopySheet(content: string): string {
   return sheet.trim();
 }
 
-function ContentActionBar({ content, contentType, title, color }: {
+function ContentActionBar({ content, contentType, title, color, wpConnection, onWpPublish, wpPublishing }: {
   content: string; contentType: string; title: string; color: string;
+  wpConnection?: any; onWpPublish?: () => void; wpPublishing?: boolean;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
   const flash = (key: string) => { setCopied(key); setTimeout(() => setCopied(null), 1500); };
@@ -706,6 +707,16 @@ function ContentActionBar({ content, contentType, title, color }: {
         className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-all ${copied === "raw" ? "bg-green-50 border-green-300 text-green-700" : "hover:bg-white hover:shadow-sm text-gray-600 border-gray-200"}`}>
         <span>📋</span><span>{copied === "raw" ? "✓ 복사됨" : "원본 복사"}</span>
       </button>
+      {wpConnection && onWpPublish && (
+        <>
+          <span className="text-gray-300 mx-0.5">|</span>
+          <button onClick={onWpPublish} disabled={wpPublishing}
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-all font-medium ${wpPublishing ? "bg-blue-50 border-blue-200 text-blue-400 cursor-wait" : "bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100 hover:shadow-sm"}`}>
+            <span>{wpPublishing ? "⏳" : "🌐"}</span>
+            <span>{wpPublishing ? "발행 중..." : "WordPress 발행"}</span>
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -1024,6 +1035,64 @@ export default function ClientPage() {
   const [clImproveLlm, setClImproveLlm] = useState<"claude" | "gpt">("claude");
   const [clSavedContents, setClSavedContents] = useState<any[]>([]);
   const [clViewContent, setClViewContent] = useState<any>(null);
+
+  // WordPress CMS connection state
+  const [wpConnection, setWpConnection] = useState<any>(null);
+  const [wpPublishing, setWpPublishing] = useState(false);
+
+  const checkWpConnection = async () => {
+    try {
+      const sb = createClient();
+      const { data } = await sb.from("bmp_cms_connections")
+        .select("*")
+        .eq("hub_slug", client)
+        .eq("cms_type", "wordpress_com")
+        .eq("is_active", true)
+        .single();
+      if (data) setWpConnection(data);
+    } catch {}
+  };
+
+  const connectWordPress = async () => {
+    try {
+      const res = await fetch(`/api/wordpress-connect?slug=${client}&partner=${partner}`);
+      const data = await res.json();
+      if (data.auth_url) window.location.href = data.auth_url;
+    } catch (e) { console.error("WP connect error:", e); }
+  };
+
+  const publishToWordPress = async (title: string, contentMd: string, contentId?: string) => {
+    if (!wpConnection) return;
+    setWpPublishing(true);
+    try {
+      const res = await fetch("/api/wordpress-publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hub_slug: client, title, content_md: contentMd, content_id: contentId }),
+      });
+      const data = await res.json();
+      setWpPublishing(false);
+      if (data.success) {
+        alert(`✅ WordPress 발행 완료!\n\n${data.wp_url}\n\n상태: ${data.wp_status === "draft" ? "임시글 (검토 후 발행)" : "발행됨"}`);
+        window.open(data.wp_edit_url, "_blank");
+      } else {
+        if (data.code === "TOKEN_EXPIRED") { setWpConnection(null); alert("⚠️ WordPress 인증이 만료되었습니다. 재연동해주세요."); }
+        else alert("❌ 발행 실패: " + (data.error || "알 수 없는 오류"));
+      }
+    } catch (e: any) { setWpPublishing(false); alert("❌ 발행 오류: " + e.message); }
+  };
+
+  // Check WP connection on content lab open + handle callback redirect
+  useEffect(() => {
+    if (activeSection === "contentlab" && client) {
+      checkWpConnection();
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("wp_connected") === "true") {
+        checkWpConnection();
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  }, [activeSection, client]);
 
   const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
   const supabaseClient = createClient();
@@ -2078,6 +2147,26 @@ export default function ClientPage() {
                 </div>
               </div>
 
+              {/* WordPress Connection Banner */}
+              <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs ${wpConnection ? "bg-blue-50/50 border-blue-200" : "bg-gray-50 border-gray-200"}`}>
+                <div className="flex items-center gap-2">
+                  <span>{wpConnection ? "🌐" : "🔗"}</span>
+                  {wpConnection ? (
+                    <span className="text-blue-700 font-medium">WordPress 연동됨 — {wpConnection.site_url || wpConnection.blog_url || "연결됨"}</span>
+                  ) : (
+                    <span className="text-gray-500">WordPress 연동 시 AI 콘텐츠를 사이트에 바로 발행할 수 있습니다</span>
+                  )}
+                </div>
+                {wpConnection ? (
+                  <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-bold text-[10px]">연동 완료</span>
+                ) : (
+                  <button onClick={connectWordPress}
+                    className="px-3 py-1.5 rounded-lg border border-blue-300 bg-white text-blue-600 font-medium hover:bg-blue-50 transition-all">
+                    WordPress 연동
+                  </button>
+                )}
+              </div>
+
               {/* ── PAGE IMPROVE MODE ── */}
               {clMode === "improve" && (
                 <div className="space-y-4">
@@ -2285,6 +2374,13 @@ export default function ClientPage() {
                       contentType={clGenResult.content_type || clSelectedType || "blog"}
                       title={clGenResult.content?.match(/^#\s+(.+)$/m)?.[1] || "콘텐츠"}
                       color={color}
+                      wpConnection={wpConnection}
+                      wpPublishing={wpPublishing}
+                      onWpPublish={() => publishToWordPress(
+                        clGenResult.content?.match(/^#\s+(.+)$/m)?.[1] || "콘텐츠",
+                        clGenResult.content,
+                        clGenResult.id
+                      )}
                     />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -2363,6 +2459,13 @@ export default function ClientPage() {
                       contentType={clViewContent.content_type || "blog"}
                       title={clViewContent.title || clViewContent.slug || "콘텐츠"}
                       color={color}
+                      wpConnection={wpConnection}
+                      wpPublishing={wpPublishing}
+                      onWpPublish={() => publishToWordPress(
+                        clViewContent.title || clViewContent.slug || "콘텐츠",
+                        clViewContent.body_md || "",
+                        clViewContent.id
+                      )}
                     />
                   </div>
                 )}
