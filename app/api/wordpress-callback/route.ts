@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const clientSecret = secrets?.find((s: any) => s.key_name === "WP_COM_CLIENT_SECRET")?.key_value;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(new URL("/?wp_error=config_missing", req.url));
+    return NextResponse.redirect(new URL(`/?wp_error=config_missing&wp_detail=${encodeURIComponent(`id:${!!clientId},secret:${!!clientSecret},count:${secrets?.length || 0}`)}`, req.url));
   }
 
   // Exchange code for access token
@@ -55,8 +55,10 @@ export async function GET(req: NextRequest) {
 
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
-    console.error("WP token exchange failed:", errText);
-    return NextResponse.redirect(new URL("/?wp_error=token_failed", req.url));
+    console.error("WP token exchange failed:", tokenRes.status, errText);
+    // Include error details for debugging
+    const errDetail = encodeURIComponent(errText.slice(0, 200));
+    return NextResponse.redirect(new URL(`/?wp_error=token_failed&wp_detail=${errDetail}&wp_status=${tokenRes.status}`, req.url));
   }
 
   const tokenData = await tokenRes.json();
