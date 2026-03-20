@@ -1080,6 +1080,10 @@ export default function ClientPage() {
   const [clViewContent, setClViewContent] = useState<any>(null);
   const [clSavedImproves, setClSavedImproves] = useState<any[]>([]);
   const [clViewImprove, setClViewImprove] = useState<any>(null);
+  const [clCrawledPages, setClCrawledPages] = useState<any[]>([]);
+  const [clSelectedPage, setClSelectedPage] = useState<any>(null);
+  const [clPageImproveResult, setClPageImproveResult] = useState<any>(null);
+  const [clPageImproveLoading, setClPageImproveLoading] = useState(false);
 
   // WordPress CMS connection state
   const [wpConnection, setWpConnection] = useState<any>(null);
@@ -1158,9 +1162,9 @@ export default function ClientPage() {
       const { data } = await supabaseClient.from("bmp_generated_contents")
         .select("id,title,slug,content_type,llm_provider,llm_model,status,char_count,body_md,generation_ms,created_at,metadata")
         .eq("hub_slug", client)
-        .eq("content_type", "improve")
+        .in("content_type", ["improve", "page_improve"])
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(30);
       if (data) setClSavedImproves(data);
     } catch {}
   };
@@ -1184,6 +1188,69 @@ export default function ClientPage() {
       });
       loadSavedImproves();
     } catch (e) { console.error("Save improve error:", e); }
+  };
+
+  const loadCrawledPages = async () => {
+    try {
+      const siteDomain = analysisStatus?.brand?.site_domain;
+      if (!siteDomain) return;
+      const domain = siteDomain.replace(/\/$/, "");
+      const { data } = await supabaseClient.from("geo_gpt_firecrawl_raw")
+        .select("id,url,title,site_domain,status_code,created_at")
+        .or(`site_domain.eq.${domain},site_domain.eq.${domain}/`)
+        .order("created_at", { ascending: true })
+        .limit(50);
+      if (data) setClCrawledPages(data);
+    } catch (e) { console.error("Load crawled pages error:", e); }
+  };
+
+  const loadPageDetail = async (pageId: number) => {
+    try {
+      const { data } = await supabaseClient.from("geo_gpt_firecrawl_raw")
+        .select("id,url,title,markdown,status_code,created_at")
+        .eq("id", pageId)
+        .single();
+      if (data) setClSelectedPage(data);
+    } catch (e) { console.error("Load page detail error:", e); }
+  };
+
+  const improveSelectedPage = async () => {
+    if (!clSelectedPage?.markdown) return;
+    setClPageImproveLoading(true); setClPageImproveResult(null);
+    try {
+      const res = await fetch("/api/page-improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page_url: clSelectedPage.url,
+          page_title: clSelectedPage.title,
+          page_markdown: clSelectedPage.markdown,
+          llm: clImproveLlm,
+          brand_name: hubConfig?.brand_name || client,
+        }),
+      });
+      const result = await res.json();
+      setClPageImproveResult(result);
+      if (result.success) {
+        // Auto-save to DB
+        await supabaseClient.from("bmp_generated_contents").insert({
+          hub_slug: client,
+          partner_slug: partner,
+          content_type: "page_improve",
+          title: `${clSelectedPage.title || clSelectedPage.url} — ${result.llm_name} 개선`,
+          slug: `page-improve-${Date.now()}`,
+          body_md: result.improvements,
+          llm_provider: result.llm,
+          llm_model: result.llm_name,
+          generation_ms: result.elapsed_ms || 0,
+          char_count: result.char_count || 0,
+          status: "draft",
+          metadata: { original_url: clSelectedPage.url, original_title: clSelectedPage.title },
+        });
+        loadSavedImproves();
+      }
+    } catch (e) { console.error("Page improve error:", e); }
+    setClPageImproveLoading(false);
   };
 
   // Auto-load saved contents when contentlab tab opens
@@ -1269,6 +1336,11 @@ export default function ClientPage() {
     }
     loadData();
   }, [partner, client]);
+
+  // Load crawled pages when analysisStatus becomes available
+  useEffect(() => {
+    if (analysisStatus?.brand?.site_domain && activeSection === "contentlab") loadCrawledPages();
+  }, [analysisStatus, activeSection]);
 
   /* ── Chat scroll ── */
   useEffect(() => {
@@ -2255,114 +2327,182 @@ export default function ClientPage() {
               {/* ── PAGE IMPROVE MODE ── */}
               {clMode === "improve" && (
                 <div className="space-y-4">
-                  {/* LLM Selection */}
+                  {/* LLM Selection Bar */}
                   <div className="flex items-center gap-3">
                     {([
-                      { key: "claude" as const, name: "Claude", sub: "E-E-A-T 구조 + Schema.org JSON-LD", clr: "#d97706" },
-                      { key: "gpt" as const, name: "GPT-4o", sub: "마케팅 카피 + CTA + 전환율 최적화", clr: "#10a37f" },
+                      { key: "claude" as const, name: "Claude", sub: "E-E-A-T 구조 개선", clr: "#d97706" },
+                      { key: "gpt" as const, name: "GPT-4o", sub: "마케팅 + 전환율 최적화", clr: "#10a37f" },
                     ]).map(l => (
                       <button key={l.key} onClick={() => setClImproveLlm(l.key)}
-                        className={`flex-1 p-3 rounded-xl border-2 text-left transition-all ${clImproveLlm === l.key ? "shadow-sm" : "border-gray-200 hover:border-gray-300"}`}
+                        className={`flex-1 p-2.5 rounded-xl border-2 text-left transition-all ${clImproveLlm === l.key ? "shadow-sm" : "border-gray-200 hover:border-gray-300"}`}
                         style={clImproveLlm === l.key ? { borderColor: l.clr, backgroundColor: l.clr + "06" } : {}}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: l.clr }} />
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.clr }} />
                           <span className="text-sm font-bold text-gray-900">{l.name}</span>
                           {clImproveLlm === l.key && <span className="text-[10px] px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: l.clr }}>선택됨</span>}
+                          <span className="text-[11px] text-gray-400 ml-auto">{l.sub}</span>
                         </div>
-                        <p className="text-[11px] text-gray-500">{l.sub}</p>
                       </button>
                     ))}
-                    <button onClick={async () => {
-                      setClImproveLoading(true); setClImproveResult(null);
-                      try {
-                        const r = await fetch(efBase + "/geobh-content-improve", {
-                          method: "POST", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ slug: client, llm: clImproveLlm, limit: 10 }),
-                        });
-                        const result = await r.json();
-                        setClImproveResult(result);
-                        if (result.success) saveImproveResult(result, clImproveLlm);
-                      } catch {}
-                      setClImproveLoading(false);
-                    }} disabled={clImproveLoading}
-                      className="px-5 py-3 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 flex-shrink-0"
-                      style={{ backgroundColor: clImproveLlm === "claude" ? "#d97706" : "#10a37f" }}>
-                      {clImproveLoading ? "분석 중..." : "🚀 분석"}
-                    </button>
                   </div>
 
-                  {/* Loading */}
-                  {clImproveLoading && (
-                    <div className="bg-white rounded-xl border p-8 flex flex-col items-center gap-3">
-                      <Loader2 className="w-6 h-6 animate-spin" style={{ color }} />
-                      <span className="text-sm text-gray-500">
-                        {clImproveLlm === "claude" ? "Claude가 E-E-A-T 구조와 Schema.org를 분석 중..." : "GPT-4o가 마케팅 카피와 전환율을 분석 중..."}
-                      </span>
-                      <span className="text-xs text-gray-400">최대 10개 페이지 · 약 30~60초 소요</span>
+                  {/* ── 크롤링된 페이지 리스트 ── */}
+                  {clCrawledPages.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-gray-700">
+                          크롤링된 페이지 ({clCrawledPages.length}개)
+                          {clSelectedPage && <span className="text-xs text-gray-400 font-normal ml-2">— 페이지를 선택하면 AI가 개별 개선안을 생성합니다</span>}
+                        </h4>
+                        <button onClick={loadCrawledPages} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3" /> 새로고침
+                        </button>
+                      </div>
+
+                      <div className="bg-white rounded-xl border overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 border-b text-gray-500">
+                              <th className="px-3 py-2 text-left font-medium">유형</th>
+                              <th className="px-3 py-2 text-left font-medium">페이지</th>
+                              <th className="px-3 py-2 text-left font-medium">URL</th>
+                              <th className="px-3 py-2 text-center font-medium">상태</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {clCrawledPages.map((pg: any) => {
+                              const isProduct = pg.url?.includes("/product/");
+                              const isSelected = clSelectedPage?.id === pg.id;
+                              const shortUrl = (pg.url || "").replace(/^https?:\/\/[^/]+/, "");
+                              return (
+                                <tr key={pg.id} onClick={() => { if (isSelected) { setClSelectedPage(null); setClPageImproveResult(null); } else { loadPageDetail(pg.id); setClPageImproveResult(null); } }}
+                                  className={`border-b last:border-0 cursor-pointer transition-colors ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                                  <td className="px-3 py-2.5">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isProduct ? "bg-purple-50 text-purple-600" : "bg-amber-50 text-amber-700"}`}>
+                                      {isProduct ? "상품" : "핵심"}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 font-medium text-gray-800">{pg.title || "(제목 없음)"}</td>
+                                  <td className="px-3 py-2.5 text-gray-400 font-mono text-[10px]">{shortUrl.length > 50 ? shortUrl.slice(0, 50) + "..." : shortUrl}</td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    {isSelected ? (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">선택됨</span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500">선택</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl border p-6 text-center text-sm text-gray-500">
+                      {analysisStatus?.brand?.site_domain
+                        ? <><Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" /><span>크롤링된 페이지를 불러오는 중...</span></>
+                        : "EEAT 분석을 먼저 실행하면 크롤링된 페이지가 여기에 표시됩니다."}
                     </div>
                   )}
 
-                  {/* Result */}
-                  {clImproveResult?.success && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: clImproveLlm === "claude" ? "#d97706" : "#10a37f" }} />
-                          <span className="text-sm font-bold">{clImproveResult.llm_name}</span>
-                          <span className="text-xs text-gray-400">{clImproveResult.llm_focus}</span>
+                  {/* ── 선택된 페이지 상세 + AI 개선 ── */}
+                  {clSelectedPage && (
+                    <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+                      <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-900">{clSelectedPage.title || "(제목 없음)"}</h4>
+                          <p className="text-[11px] text-gray-400 font-mono mt-0.5">{clSelectedPage.url}</p>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                          <span>{clImproveResult.page_count}페이지</span>
-                          <span>{(clImproveResult.elapsed_ms / 1000).toFixed(1)}초</span>
-                          <button onClick={() => navigator.clipboard.writeText(clImproveResult.improvements)}
-                            className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-600">복사</button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={improveSelectedPage} disabled={clPageImproveLoading}
+                            className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50"
+                            style={{ backgroundColor: clImproveLlm === "claude" ? "#d97706" : "#10a37f" }}>
+                            {clPageImproveLoading ? "분석 중..." : `${clImproveLlm === "claude" ? "Claude" : "GPT-4o"}로 개선`}
+                          </button>
+                          <button onClick={() => { setClSelectedPage(null); setClPageImproveResult(null); }}
+                            className="px-2 py-1 rounded border hover:bg-gray-100 text-gray-500 text-xs">✕</button>
                         </div>
                       </div>
-                      <div className="bg-white rounded-xl border overflow-hidden">
-                        <div className="max-h-[60vh] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-                          <div className="p-5 text-[12.5px] text-gray-700 leading-relaxed
+
+                      {/* 원본 미리보기 (접힘) */}
+                      <details className="border-b">
+                        <summary className="px-4 py-2 text-xs text-gray-500 cursor-pointer hover:bg-gray-50">
+                          📄 원본 콘텐츠 미리보기 ({clSelectedPage.markdown?.length?.toLocaleString() || 0}자)
+                        </summary>
+                        <div className="px-4 py-3 max-h-[300px] overflow-y-auto text-[11px] text-gray-600 leading-relaxed bg-gray-50/50 whitespace-pre-wrap">
+                          {(clSelectedPage.markdown || "").slice(0, 3000)}
+                          {(clSelectedPage.markdown || "").length > 3000 && <span className="text-gray-400">... (이하 생략)</span>}
+                        </div>
+                      </details>
+
+                      {/* Loading */}
+                      {clPageImproveLoading && (
+                        <div className="p-8 flex flex-col items-center gap-3">
+                          <Loader2 className="w-6 h-6 animate-spin" style={{ color }} />
+                          <span className="text-sm text-gray-500">
+                            {clImproveLlm === "claude" ? "Claude가 E-E-A-T 구조를 분석하고 개선 콘텐츠를 생성 중..." : "GPT-4o가 마케팅 관점으로 개선 콘텐츠를 생성 중..."}
+                          </span>
+                          <span className="text-xs text-gray-400">약 20~40초 소요</span>
+                        </div>
+                      )}
+
+                      {/* 개선 결과 */}
+                      {clPageImproveResult?.success && (
+                        <div>
+                          <div className="flex items-center justify-between px-4 py-2 border-b bg-green-50">
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: clImproveLlm === "claude" ? "#d97706" : "#10a37f" }} />
+                              <span className="font-bold text-green-800">{clPageImproveResult.llm_name} 개선 완료</span>
+                              <span className="text-green-600">{(clPageImproveResult.elapsed_ms / 1000).toFixed(1)}초 · {clPageImproveResult.char_count?.toLocaleString()}자</span>
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold">자동 저장됨</span>
+                          </div>
+                          <div className="max-h-[60vh] overflow-y-auto p-5 text-[12.5px] text-gray-700 leading-relaxed
                             [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-gray-900 [&_h1]:mt-6 [&_h1]:mb-3
                             [&_h2]:text-sm [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:pb-1.5 [&_h2]:border-b [&_h2]:border-gray-100
                             [&_h3]:text-[12.5px] [&_h3]:font-bold [&_h3]:text-gray-800 [&_h3]:mt-3 [&_h3]:mb-1
-                            [&_h4]:text-[12px] [&_h4]:font-semibold [&_h4]:text-gray-700 [&_h4]:mt-2
                             [&_p]:my-1.5 [&_li]:text-[12px] [&_li]:leading-relaxed
                             [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4
                             [&_code]:text-[11px] [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded
                             [&_pre]:bg-gray-900 [&_pre]:text-green-400 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:my-3
                             [&_strong]:text-gray-900">
-                            <ReactMarkdown>{clImproveResult.improvements}</ReactMarkdown>
+                            <ReactMarkdown>{clPageImproveResult.improvements}</ReactMarkdown>
                           </div>
+                          <ContentActionBar
+                            content={clPageImproveResult.improvements}
+                            contentType="page_improve"
+                            title={`${clSelectedPage.title || "페이지"} — 개선`}
+                            color={color}
+                            wpConnection={wpConnection}
+                            wpPublishing={wpPublishing}
+                            onWpPublish={() => publishToWordPress(
+                              `${clSelectedPage.title || "페이지"} — E-E-A-T 개선`,
+                              clPageImproveResult.improvements
+                            )}
+                          />
                         </div>
-                      </div>
-                      {/* Compare with other LLM */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">다른 AI 관점:</span>
-                        <button onClick={() => { setClImproveLlm(clImproveLlm === "claude" ? "gpt" : "claude"); }}
-                          className="text-xs px-3 py-1.5 rounded-lg border hover:shadow-sm flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: clImproveLlm === "claude" ? "#10a37f" : "#d97706" }} />
-                          {clImproveLlm === "claude" ? "GPT-4o 관점으로 분석" : "Claude 관점으로 분석"}
-                        </button>
-                      </div>
+                      )}
+
+                      {clPageImproveResult && !clPageImproveResult.success && (
+                        <div className="p-4 bg-red-50">
+                          <p className="text-sm text-red-700">오류: {clPageImproveResult.error}</p>
+                          {clPageImproveResult.details && <p className="text-xs text-red-500 mt-1">{clPageImproveResult.details?.slice(0, 200)}</p>}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {clImproveResult && !clImproveResult.success && (
-                    <div className="bg-red-50 rounded-xl border border-red-200 p-4">
-                      <p className="text-sm text-red-700">오류: {clImproveResult.error}</p>
-                    </div>
-                  )}
-
-                  {/* ── 저장된 개선 분석 이력 ── */}
+                  {/* ── 이전 개선 이력 ── */}
                   {clSavedImproves.length > 0 && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-gray-700">이전 분석 이력</h4>
+                        <h4 className="text-sm font-bold text-gray-700">이전 개선 이력 ({clSavedImproves.length}건)</h4>
                         <button onClick={loadSavedImproves} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
                           <RefreshCw className="w-3 h-3" /> 새로고침
                         </button>
                       </div>
 
-                      {/* 상세 뷰 */}
                       {clViewImprove && (
                         <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
                           <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50">
@@ -2390,7 +2530,7 @@ export default function ClientPage() {
                           </div>
                           <ContentActionBar
                             content={clViewImprove.body_md || ""}
-                            contentType="improve"
+                            contentType="page_improve"
                             title={clViewImprove.title || "개선 분석"}
                             color={color}
                             wpConnection={wpConnection}
@@ -2404,15 +2544,13 @@ export default function ClientPage() {
                         </div>
                       )}
 
-                      {/* 리스트 */}
                       <div className="bg-white rounded-xl border overflow-hidden">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="bg-gray-50 border-b text-gray-500">
                               <th className="px-3 py-2 text-left font-medium">날짜</th>
+                              <th className="px-3 py-2 text-left font-medium">제목</th>
                               <th className="px-3 py-2 text-left font-medium">AI</th>
-                              <th className="px-3 py-2 text-center font-medium">페이지</th>
-                              <th className="px-3 py-2 text-center font-medium">소요</th>
                               <th className="px-3 py-2 text-center font-medium">분량</th>
                               <th className="px-3 py-2 text-center font-medium">액션</th>
                             </tr>
@@ -2433,14 +2571,13 @@ export default function ClientPage() {
                                   {" "}
                                   {new Date(item.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
                                 </td>
+                                <td className="px-3 py-2.5 text-gray-800 font-medium">{(item.title || "").slice(0, 40)}{(item.title || "").length > 40 ? "..." : ""}</td>
                                 <td className="px-3 py-2.5">
                                   <span className="inline-flex items-center gap-1">
                                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.llm_provider === "claude" ? "#d97706" : "#10a37f" }} />
                                     {item.llm_provider === "claude" ? "Claude" : "GPT-4o"}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2.5 text-center text-gray-500">{item.metadata?.page_count || "-"}</td>
-                                <td className="px-3 py-2.5 text-center text-gray-500">{item.generation_ms ? (item.generation_ms / 1000).toFixed(1) + "s" : "-"}</td>
                                 <td className="px-3 py-2.5 text-center text-gray-500">{item.char_count?.toLocaleString() || "-"}자</td>
                                 <td className="px-3 py-2.5 text-center">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${clViewImprove?.id === item.id ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
@@ -2456,6 +2593,7 @@ export default function ClientPage() {
                   )}
                 </div>
               )}
+
 
               {/* ── CONTENT GENERATE MODE (existing) ── */}
               {clMode === "generate" && (
