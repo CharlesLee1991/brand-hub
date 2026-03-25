@@ -1035,7 +1035,7 @@ export default function ClientPage() {
     client_analyses: { slug: string; url: string; industry: string; score: number; grade: string }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "compliance" | "competitor" | "contentlab" | "services" | "chat">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "compliance" | "competitor" | "contentlab" | "brandhub" | "jsonld" | "services" | "chat">("overview");
 
   // Chat states
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1513,6 +1513,8 @@ export default function ClientPage() {
     { key: "compliance", label: "컴플라이언스", icon: AlertTriangle },
     { key: "competitor", label: "경쟁사", icon: Target },
     { key: "contentlab", label: "콘텐츠 랩", icon: Wand2 },
+    { key: "brandhub", label: "Brand Hub", icon: ExternalLink },
+    { key: "jsonld", label: "JSON-LD 설치", icon: FileText },
     { key: "services", label: "서비스", icon: Award },
     { key: "chat", label: "AI 어시스턴트", icon: MessageSquare },
   ] as const;
@@ -3021,6 +3023,199 @@ export default function ClientPage() {
                 </div>
               </div>
             </section>
+          </div>
+        )}
+
+        {/* ──── BRAND HUB TAB ──── */}
+        {activeSection === "brandhub" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">🌐 Brand Hub 사이트</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                AI 검색 최적화된 브랜드 허브 사이트입니다. GEO 데이터가 자동 반영됩니다.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <a href={`https://geocare.pages.dev/${client}/`} target="_blank" rel="noopener noreferrer"
+                  className="block p-5 rounded-xl border-2 hover:shadow-lg transition group" style={{ borderColor: color }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <ExternalLink className="w-5 h-5" style={{ color }} />
+                    <span className="font-bold" style={{ color }}>라이브 사이트</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">geocare.pages.dev/{client}/</p>
+                  <span className="text-xs text-gray-400 group-hover:text-gray-600">클릭하여 새 탭에서 열기 →</span>
+                </a>
+                <a href={`https://nntuztaehnywdbttrajy.supabase.co/functions/v1/brandhub-serve?slug=${client}`} target="_blank" rel="noopener noreferrer"
+                  className="block p-5 rounded-xl border hover:shadow-lg transition group">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-5 h-5 text-gray-600" />
+                    <span className="font-bold text-gray-700">서빙 API (프리뷰)</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">brandhub-serve EF 직접 접속</p>
+                  <span className="text-xs text-gray-400 group-hover:text-gray-600">클릭하여 새 탭에서 열기 →</span>
+                </a>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border p-6">
+              <h4 className="font-bold text-gray-900 mb-3">빌드 & 배포</h4>
+              <p className="text-sm text-gray-500 mb-4">Brand Hub를 빌드하고 CF Pages에 배포합니다.</p>
+              <div className="flex gap-3">
+                <button onClick={async () => {
+                  try {
+                    const r = await fetch(`https://nntuztaehnywdbttrajy.supabase.co/functions/v1/brandhub-build`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ slug: client })
+                    });
+                    const d = await r.json();
+                    alert(d.success ? `빌드 완료! ${d.files_built}파일, ${d.elapsed_sec}초` : `오류: ${d.error}`);
+                  } catch (e: any) { alert("빌드 실패: " + e.message); }
+                }} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: color }}>
+                  🔨 빌드
+                </button>
+                <button onClick={async () => {
+                  try {
+                    const r = await fetch(`https://nntuztaehnywdbttrajy.supabase.co/functions/v1/brandhub-deploy`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ slugs: [client] })
+                    });
+                    const d = await r.json();
+                    alert(d.success ? `배포 완료! ${d.files_count}파일, ${d.elapsed_sec}초\n${d.live_url}` : `오류: ${d.error}`);
+                  } catch (e: any) { alert("배포 실패: " + e.message); }
+                }} className="px-4 py-2 rounded-lg text-sm font-semibold border hover:bg-gray-50">
+                  🚀 CF Pages 배포
+                </button>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border p-6">
+              <h4 className="font-bold text-gray-900 mb-3">페이지 구성</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {["홈", "제품", "FAQ", "매장", "스토리", "회사정보", "뉴스"].map((page, i) => {
+                  const slugs = ["", "products", "faq", "stores", "story", "about", "news"];
+                  return (
+                    <a key={i} href={`https://geocare.pages.dev/${client}/${slugs[i]}/`} target="_blank" rel="noopener noreferrer"
+                      className="p-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-center text-sm font-medium transition">
+                      {page}
+                    </a>
+                  );
+                })}
+                <a href={`https://geocare.pages.dev/${client}/llms.txt`} target="_blank" rel="noopener noreferrer"
+                  className="p-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-center text-sm font-medium text-blue-700 transition">
+                  llms.txt
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ──── JSON-LD 설치 TAB ──── */}
+        {activeSection === "jsonld" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">🔗 JSON-LD 설치 도구</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                고객 사이트에 JSON-LD를 설치하는 방법입니다. GTM 방식과 서버사이드 방식을 제공합니다.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4 mb-6">
+                <div className="p-4 rounded-xl border-2 border-yellow-400 bg-yellow-50">
+                  <h4 className="font-bold text-yellow-800 mb-1">방법 1: GTM 자동 삽입</h4>
+                  <div className="flex gap-1 mb-2">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">AI 크롤러 ❌</span>
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Google ✅</span>
+                  </div>
+                  <p className="text-xs text-yellow-700">GTM 커스텀 HTML 태그 하나로 전체 사이트 자동 적용. 단, AI 크롤러는 못 봄.</p>
+                </div>
+                <div className="p-4 rounded-xl border-2 border-green-400 bg-green-50">
+                  <h4 className="font-bold text-green-800 mb-1">방법 2: 서버사이드 (권장)</h4>
+                  <div className="flex gap-1 mb-2">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">AI 크롤러 ✅</span>
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Google ✅</span>
+                  </div>
+                  <p className="text-xs text-green-700">소스코드 직접 삽입 또는 API 호출로 자동 업데이트.</p>
+                </div>
+              </div>
+
+              {/* GTM 자동감지 코드 */}
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-900 mb-2">🏷️ GTM 자동 삽입 코드 (전체 사이트 한 번에 적용)</h4>
+                <p className="text-xs text-gray-500 mb-2">GTM → 태그 → 새로 만들기 → 커스텀 HTML에 아래 코드 붙여넣기 → 트리거: All Pages</p>
+                <div className="relative">
+                  <pre className="bg-slate-800 text-slate-200 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                    <code id="gtm-auto-code">{`<script>
+// GEOcare.AI — JSON-LD 자동 삽입 (GTM)
+// 현재 페이지 URL을 자동 감지하여 매칭되는 JSON-LD를 삽입합니다
+(function(){
+  var url = encodeURIComponent(window.location.href);
+  var api = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url=" + url;
+  fetch(api)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.success && d.data){
+        var el = document.createElement("script");
+        el.type = "application/ld+json";
+        el.textContent = JSON.stringify(d.data);
+        document.head.appendChild(el);
+      }
+    });
+})();
+</script>`}</code>
+                  </pre>
+                  <button onClick={() => {
+                    const el = document.getElementById("gtm-auto-code");
+                    if (el) { navigator.clipboard.writeText(el.textContent || ""); }
+                  }} className="absolute top-2 right-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded">복사</button>
+                </div>
+                <div className="bg-yellow-50 p-3 rounded-lg mt-2">
+                  <p className="text-xs text-yellow-800"><strong>⚠️ 참고:</strong> AI 크롤러(GPTBot, ClaudeBot)는 JavaScript를 실행하지 않으므로 이 방식으로 삽입한 JSON-LD를 볼 수 없습니다. AI 검색 인용을 원하면 서버사이드 방식을 사용하세요.</p>
+                </div>
+              </div>
+
+              {/* 서버사이드 API */}
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-900 mb-2">🚀 서버사이드 API (권장)</h4>
+                <p className="text-xs text-gray-500 mb-2">서버에서 API를 호출하여 JSON-LD를 가져온 후 HTML에 삽입합니다. JSON-LD 업데이트 시 자동 반영됩니다.</p>
+                <div className="relative">
+                  <pre className="bg-slate-800 text-slate-200 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                    <code id="api-endpoint-code">{`GET https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url={페이지URL}
+
+// 응답 예시:
+{
+  "success": true,
+  "data": [{"@context":"https://schema.org", "@type":"Organization", ...}],
+  "cached": true
+}`}</code>
+                  </pre>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText("https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url=");
+                  }} className="absolute top-2 right-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded">URL 복사</button>
+                </div>
+              </div>
+
+              {/* 상세 가이드 링크 */}
+              <div className="flex gap-3">
+                <a href="/jsonld-tools" className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: color }}>
+                  📋 설치 가이드 상세 보기
+                </a>
+                <a href={`https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld-tools?action=pages&site=${encodeURIComponent(eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").split("/")[0] || client)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold border hover:bg-gray-50">
+                  🔍 이 사이트 JSON-LD 목록
+                </a>
+              </div>
+            </div>
+
+            {/* 비교표 */}
+            <div className="bg-white rounded-2xl border p-6">
+              <h4 className="font-bold text-gray-900 mb-3">📊 방법별 비교</h4>
+              <table className="w-full text-sm">
+                <thead><tr className="border-b"><th className="text-left py-2 text-xs text-gray-500">항목</th><th className="text-left py-2 text-xs text-gray-500">GTM</th><th className="text-left py-2 text-xs text-gray-500">소스코드 직접</th><th className="text-left py-2 text-xs text-gray-500">API 호출</th></tr></thead>
+                <tbody>
+                  <tr className="border-b border-gray-100"><td className="py-2">AI 크롤러</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">❌</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">Google</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">개발 필요</td><td>없음</td><td>최소</td><td>중간</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">자동 업데이트</td><td>수동</td><td>수동</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">자동</span></td></tr>
+                  <tr><td className="py-2">추천 대상</td><td>마케터</td><td>개발팀</td><td>개발팀</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
