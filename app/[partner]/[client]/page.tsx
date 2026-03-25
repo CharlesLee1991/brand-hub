@@ -1094,6 +1094,8 @@ export default function ClientPage() {
   const [abTests, setAbTests] = useState<any[]>([]);
   const [abTestsLoading, setAbTestsLoading] = useState(false);
   const [abSelectedTest, setAbSelectedTest] = useState<any>(null);
+  const [abLiveJsonld, setAbLiveJsonld] = useState<any>(null);
+  const [abCopied, setAbCopied] = useState(false);
 
   const checkWpConnection = async () => {
     try {
@@ -1373,15 +1375,24 @@ export default function ClientPage() {
     if (activeSection === "abtest" && abTests.length === 0 && client) {
       setAbTestsLoading(true);
       const sb = createClient();
+      const domain = analysisStatus?.brand?.site_domain?.replace(/https?:\/\//, "").replace(/\/$/, "") || "";
       sb.from("bmp_jsonld_ab_tests")
         .select("*")
         .order("created_at", { ascending: false })
-        .then(({ data, error }: { data: any; error: any }) => {
-          if (data) { setAbTests(data); if (data.length > 0) setAbSelectedTest(data[0]); }
+        .then(({ data }: { data: any }) => {
+          const filtered = data?.filter((t: any) => !domain || t.site_domain.includes(domain) || domain.includes(t.site_domain)) || data || [];
+          setAbTests(filtered);
+          if (filtered.length > 0) setAbSelectedTest(filtered[0]);
           setAbTestsLoading(false);
         });
+      // Fetch live JSON-LD
+      const siteUrl = analysisStatus?.brand?.site_domain;
+      if (siteUrl) {
+        fetch(`${BAWEE_EF}/geobh-jsonld?url=${encodeURIComponent(siteUrl)}`)
+          .then(r => r.json()).then(d => { if (d.success) setAbLiveJsonld(d); }).catch(() => {});
+      }
     }
-  }, [activeSection, client]);
+  }, [activeSection, client, analysisStatus]);
 
   /* ── KHub Recommendations — fetch when section changes ── */
   const sectionMap: Record<string, string> = {
@@ -3245,202 +3256,323 @@ export default function ClientPage() {
         {activeSection === "abtest" && (
           <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <FlaskConical className="w-5 h-5" style={{ color }} /> JSON-LD A/B 테스트
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">원본 사이트 vs GEOcare 최적화 — AI 검색 인용 준비도 비교</p>
-              </div>
-              {analysisStatus?.brand?.brandhub_slug && (
-                <a
-                  href={`https://geocare.pages.dev/${analysisStatus.brand.brandhub_slug}/demo/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ background: color }}
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <FlaskConical className="w-5 h-5" style={{ color }} /> JSON-LD A/B 테스트
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">원본 사이트 vs GEOcare 최적화 — AI 검색 인용 준비도(GEO Score) 비교 분석</p>
+            </div>
+
+            {/* ── LLM 질의 스크립트 ── */}
+            <div className="bg-gray-900 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 bg-gray-800">
+                <span className="text-xs text-gray-400 font-mono">LLM 질의용 API 스크립트</span>
+                <button
+                  onClick={() => {
+                    const script = `curl -s "https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url=${encodeURIComponent(analysisStatus?.brand?.site_domain || "https://example.com")}"`;
+                    navigator.clipboard.writeText(script);
+                    setAbCopied(true);
+                    setTimeout(() => setAbCopied(false), 2000);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded text-xs bg-gray-700 hover:bg-gray-600 text-green-400 transition-colors"
                 >
-                  <ExternalLink className="w-4 h-4" /> 라이브 데모 보기
-                </a>
+                  {abCopied ? <><CheckCircle className="w-3 h-3" /> 복사됨!</> : <><FileText className="w-3 h-3" /> 복사</>}
+                </button>
+              </div>
+              <pre className="px-4 py-3 text-[11px] text-green-400 font-mono overflow-x-auto whitespace-pre-wrap break-all">
+{`curl -s "https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url=${analysisStatus?.brand?.site_domain || "https://example.com"}"`}
+              </pre>
+            </div>
+
+            {/* ── 현재 사이트 JSON-LD 실시간 상태 ── */}
+            <div className="bg-white rounded-xl border p-5">
+              <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <Activity className="w-4 h-4" style={{ color }} /> 현재 사이트 JSON-LD 상태
+                <span className="text-xs text-gray-400 font-normal">— 실시간 API 조회 결과</span>
+              </h4>
+              {!abLiveJsonld ? (
+                <div className="flex items-center gap-2 text-gray-400 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin" /> 조회 중...
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* KPI 점수 */}
+                  {abLiveJsonld.url_analysis?.kpi_scores && (
+                    <div className="grid grid-cols-5 gap-2">
+                      {[
+                        { key: "brand", label: "브랜드일치", icon: "🏢", max: 20 },
+                        { key: "answer", label: "답변완성", icon: "💬", max: 20 },
+                        { key: "ai", label: "AI이해도", icon: "🤖", max: 20 },
+                        { key: "search", label: "검색발견", icon: "🔍", max: 20 },
+                        { key: "conversion", label: "전환유도", icon: "🎯", max: 20 },
+                      ].map(kpi => {
+                        const val = abLiveJsonld.url_analysis.kpi_scores[kpi.key] || 0;
+                        const pct = Math.round((val / kpi.max) * 100);
+                        return (
+                          <div key={kpi.key} className="text-center p-2 bg-gray-50 rounded-lg">
+                            <div className="text-lg">{kpi.icon}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{kpi.label}</div>
+                            <div className="text-sm font-bold font-mono" style={{ color: pct < 30 ? "#ef4444" : pct < 60 ? "#f59e0b" : "#10b981" }}>{val}/{kpi.max}</div>
+                            <div className="w-full h-1 bg-gray-200 rounded-full mt-1">
+                              <div className="h-full rounded-full" style={{ width: pct + "%", background: pct < 30 ? "#ef4444" : pct < 60 ? "#f59e0b" : "#10b981" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {/* 종합 점수 */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
+                    <div className="text-2xl font-black font-mono" style={{ color: (abLiveJsonld.url_analysis?.total_score || 0) < 40 ? "#ef4444" : "#f59e0b" }}>
+                      {abLiveJsonld.url_analysis?.total_score || 0}
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-gray-700">GEO 종합 점수 (100점 만점)</div>
+                      <div className="text-xs text-gray-400">{analysisStatus?.brand?.site_domain}</div>
+                    </div>
+                  </div>
+                  {/* 현재 스키마 */}
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1.5">현재 구현된 Schema.org 타입</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {abLiveJsonld.data?.map((s: any, i: number) => (
+                        <span key={i} className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {s["@type"]}
+                        </span>
+                      ))}
+                      {(!abLiveJsonld.data || abLiveJsonld.data.length === 0) && (
+                        <span className="text-xs text-red-400">구현된 스키마 없음</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
             {/* Loading */}
             {abTestsLoading && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                <span className="ml-2 text-gray-500">A/B 테스트 데이터 로딩 중...</span>
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-500">A/B 테스트 데이터 로딩...</span>
               </div>
             )}
 
-            {/* No Tests */}
-            {!abTestsLoading && abTests.length === 0 && (
-              <div className="text-center py-12 bg-gray-50 rounded-xl">
-                <FlaskConical className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">등록된 A/B 테스트가 없습니다</p>
-                <p className="text-sm text-gray-400 mt-1">JSON-LD 적용 효과를 측정하려면 테스트를 생성하세요</p>
-              </div>
-            )}
-
-            {/* Test List */}
-            {!abTestsLoading && abTests.length > 0 && (
-              <>
-                <div className="grid gap-3">
-                  {abTests.map((t: any) => {
-                    const isActive = abSelectedTest?.test_id === t.test_id;
-                    const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-                      draft: { bg: "bg-gray-100", text: "text-gray-600", label: "초안" },
-                      active: { bg: "bg-blue-100", text: "text-blue-700", label: "진행 중" },
-                      completed: { bg: "bg-green-100", text: "text-green-700", label: "완료" },
-                      paused: { bg: "bg-amber-100", text: "text-amber-700", label: "일시정지" },
-                    };
-                    const st = statusConfig[t.status] || statusConfig.draft;
-                    return (
-                      <button
-                        key={t.test_id}
-                        onClick={() => setAbSelectedTest(t)}
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${isActive ? "shadow-md" : "border-gray-100 hover:border-gray-200"}`}
-                        style={isActive ? { borderColor: color } : {}}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-gray-900">{t.test_name}</span>
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.bg} ${st.text}`}>{st.label}</span>
-                        </div>
-                        <p className="text-sm text-gray-500">{t.site_domain} — {t.url_pattern}</p>
-                        {t.score_a_baseline != null && t.score_b_result != null && (
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-xs text-red-500 font-mono font-bold">A: {t.score_a_baseline}점</span>
-                            <span className="text-xs text-gray-400">→</span>
-                            <span className="text-xs text-green-600 font-mono font-bold">B: {t.score_b_result}점</span>
-                            <span className="text-xs font-bold" style={{ color }}>
-                              +{Number(t.score_b_result) - Number(t.score_a_baseline)}점 개선
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Selected Test Detail */}
-                {abSelectedTest && (
-                  <div className="space-y-4">
-                    {/* Score Comparison */}
-                    {abSelectedTest.score_a_baseline != null && abSelectedTest.score_b_result != null && (
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-red-50 rounded-xl p-5 text-center border border-red-100">
-                          <div className="text-3xl font-black text-red-500 font-mono">{abSelectedTest.score_a_baseline}</div>
-                          <div className="text-xs font-bold text-red-600 mt-1 uppercase tracking-wide">Site A 종합</div>
-                          <div className="text-xs text-red-400 mt-0.5">{abSelectedTest.site_domain} (원본)</div>
-                        </div>
-                        <div className="flex flex-col items-center justify-center">
-                          <div className="text-2xl font-black text-gray-300">VS</div>
-                          <div className="text-sm font-bold mt-1" style={{ color }}>
-                            +{Number(abSelectedTest.score_b_result) - Number(abSelectedTest.score_a_baseline)}점
-                          </div>
-                        </div>
-                        <div className="bg-green-50 rounded-xl p-5 text-center border border-green-100">
-                          <div className="text-3xl font-black text-green-600 font-mono">{abSelectedTest.score_b_result}</div>
-                          <div className="text-xs font-bold text-green-700 mt-1 uppercase tracking-wide">Site B 종합</div>
-                          <div className="text-xs text-green-500 mt-0.5">GEOcare 최적화</div>
-                        </div>
+            {/* Test Cards */}
+            {!abTestsLoading && abTests.map((t: any) => {
+              const isActive = abSelectedTest?.test_id === t.test_id;
+              const stMap: Record<string, { bg: string; text: string; label: string }> = {
+                draft: { bg: "bg-gray-100", text: "text-gray-600", label: "초안" },
+                active: { bg: "bg-blue-50", text: "text-blue-700", label: "진행 중" },
+                completed: { bg: "bg-green-50", text: "text-green-700", label: "완료" },
+                paused: { bg: "bg-amber-50", text: "text-amber-700", label: "일시정지" },
+              };
+              const st = stMap[t.status] || stMap.draft;
+              const diff = t.score_b_result != null && t.score_a_baseline != null ? Number(t.score_b_result) - Number(t.score_a_baseline) : null;
+              return (
+                <div key={t.test_id} className={`rounded-xl border-2 overflow-hidden transition-all ${isActive ? "shadow-lg" : "border-gray-100"}`} style={isActive ? { borderColor: color } : {}}>
+                  {/* Card Header */}
+                  <button onClick={() => setAbSelectedTest(isActive ? null : t)} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-gray-900">{t.test_name}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.bg} ${st.text}`}>{st.label}</span>
+                    </div>
+                    <p className="text-sm text-gray-500">{t.description}</p>
+                    {/* Score summary */}
+                    <div className="flex items-center gap-4 mt-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Site A:</span>
+                        <span className="text-sm font-bold font-mono text-red-500">{t.score_a_baseline ?? "—"}점</span>
                       </div>
-                    )}
-
-                    {/* Comparison Bars */}
-                    <div className="bg-white rounded-xl border p-5">
-                      <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4" /> 항목별 비교
-                      </h4>
-                      <div className="flex gap-5 mb-3 text-xs text-gray-400">
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block" /> Site A (원본)</span>
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> Site B (GEOcare)</span>
-                      </div>
-                      {[
-                        { name: "JSON-LD 구조화", w: 20, a: 20, b: 85 },
-                        { name: "메타 태그 품질", w: 15, a: 25, b: 80 },
-                        { name: "FAQ 스키마", w: 15, a: 15, b: 90 },
-                        { name: "콘텐츠 깊이", w: 15, a: 30, b: 85 },
-                        { name: "로딩 속도", w: 10, a: 45, b: 85 },
-                        { name: "llms.txt / AI 가이드", w: 10, a: 0, b: 95 },
-                        { name: "AI 인용 가능성", w: 15, a: 25, b: 90 },
-                      ].map((item, idx) => (
-                        <div key={idx} className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-gray-50 last:border-0 last:mb-0 last:pb-0">
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-sm font-medium text-gray-700">{item.name}</span>
-                              <span className="text-xs font-mono text-red-500">{item.a}</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-red-400 rounded-full" style={{ width: `${item.a}%` }} />
-                            </div>
+                      {diff != null && (
+                        <>
+                          <span className="text-gray-300">→</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">Site B:</span>
+                            <span className="text-sm font-bold font-mono text-green-600">{t.score_b_result}점</span>
                           </div>
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold text-white" style={{ background: color }}>+{diff}점</span>
+                        </>
+                      )}
+                      {diff == null && t.variant_b?.expected_score && (
+                        <>
+                          <span className="text-gray-300">→</span>
+                          <span className="text-xs text-gray-400">예상: <strong className="text-green-600">{t.variant_b.expected_score}점</strong></span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Expanded Detail */}
+                  {isActive && (
+                    <div className="border-t p-5 space-y-5 bg-gray-50/50">
+                      {/* Score Visual */}
+                      {t.score_a_baseline != null && (
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="bg-red-50 rounded-xl p-5 text-center border border-red-100">
+                            <div className="text-3xl font-black text-red-500 font-mono">{t.score_a_baseline}</div>
+                            <div className="text-xs font-bold text-red-600 mt-1">Site A 종합</div>
+                            <div className="text-xs text-red-400 mt-0.5">{t.site_domain} (원본)</div>
+                          </div>
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="text-2xl font-black text-gray-300">VS</div>
+                            {diff != null && <div className="text-sm font-bold mt-1" style={{ color }}>+{diff}점</div>}
+                            {diff == null && t.variant_b?.expected_score && <div className="text-xs text-gray-400 mt-1">예상 +{t.variant_b.expected_score - t.score_a_baseline}점</div>}
+                          </div>
+                          <div className="rounded-xl p-5 text-center border" style={{ background: diff != null ? "#f0fdf4" : "#eff6ff", borderColor: diff != null ? "#bbf7d0" : "#bfdbfe" }}>
+                            <div className="text-3xl font-black font-mono" style={{ color: diff != null ? "#16a34a" : "#3b82f6" }}>
+                              {t.score_b_result ?? (t.variant_b?.expected_score || "?")}
+                            </div>
+                            <div className="text-xs font-bold mt-1" style={{ color: diff != null ? "#15803d" : "#1d4ed8" }}>
+                              Site B 종합 {diff == null ? "(예상)" : ""}
+                            </div>
+                            <div className="text-xs mt-0.5" style={{ color: diff != null ? "#22c55e" : "#60a5fa" }}>GEOcare 최적화</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Comparison Bars */}
+                      <div className="bg-white rounded-xl border p-5">
+                        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          <BarChart3 className="w-4 h-4" /> 항목별 비교 분석
+                        </h4>
+                        <div className="flex gap-5 mb-3 text-xs text-gray-400">
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block" /> Site A (원본)</span>
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> Site B (GEOcare)</span>
+                        </div>
+                        {[
+                          { name: "JSON-LD 구조화", w: 20, a: 20, b: 85, na: "기본 스키마만 존재", nb: "다중 스키마 구현 (Organization + FAQPage + Product 등)" },
+                          { name: "메타 태그 품질", w: 15, a: 25, b: 80, na: "기본 OG 태그만", nb: "페이지별 최적화된 title/description/canonical" },
+                          { name: "FAQ 스키마", w: 15, a: 15, b: 90, na: "FAQ 섹션 미구현", nb: "FAQPage 스키마 + 아코디언 UI" },
+                          { name: "콘텐츠 깊이", w: 15, a: 30, b: 85, na: "제한된 정보량", nb: "다중 페이지, 풍부한 구조화 콘텐츠" },
+                          { name: "로딩 속도", w: 10, a: 45, b: 85, na: "일반적인 로딩 속도", nb: "CDN 엣지 서빙, 0.1초대 로딩" },
+                          { name: "llms.txt / AI 가이드", w: 10, a: 0, b: 95, na: "llms.txt 미존재", nb: "llms.txt + AI 크롤러 전체 허용" },
+                          { name: "AI 인용 가능성", w: 15, a: 25, b: 90, na: "구조화 데이터 부재로 인용 어려움", nb: "구조화 데이터 + 시맨틱 HTML + AI 가이드 완비" },
+                        ].map((item, idx) => (
+                          <div key={idx} className="mb-4 pb-4 border-b border-gray-50 last:border-0 last:mb-0 last:pb-0">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-semibold text-gray-700">{item.name}</span>
                               <span className="text-xs text-gray-400">가중치 {item.w}%</span>
-                              <span className="text-xs font-mono text-green-600">{item.b} (+{item.b - item.a})</span>
                             </div>
-                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-green-500 rounded-full" style={{ width: `${item.b}%` }} />
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-red-400">A: {item.na}</span>
+                                  <span className="font-mono font-bold text-red-500">{item.a}</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-red-400 rounded-full transition-all duration-1000" style={{ width: item.a + "%" }} />
+                                </div>
+                              </div>
+                              <div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-green-600">B: {item.nb}</span>
+                                  <span className="font-mono font-bold text-green-600">{item.b} <span className="text-green-400">(+{item.b - item.a})</span></span>
+                                </div>
+                                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-green-500 rounded-full transition-all duration-1000" style={{ width: item.b + "%" }} />
+                                </div>
+                              </div>
                             </div>
                           </div>
+                        ))}
+                      </div>
+
+                      {/* Variant A / B Detail Cards */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-xl p-4 border border-red-100 bg-red-50/50">
+                          <div className="text-xs font-bold text-red-600 mb-2 uppercase tracking-wide">Variant A — 원본 사이트</div>
+                          {t.variant_a?.note && <p className="text-sm text-red-500 mb-2">{t.variant_a.note}</p>}
+                          {t.variant_a?.schemas && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {t.variant_a.schemas.map((s: string, i: number) => (
+                                <span key={i} className="px-2 py-0.5 bg-red-100 text-red-600 rounded text-xs">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                          {t.variant_a?.kpi_scores && (
+                            <div className="mt-2 grid grid-cols-5 gap-1">
+                              {Object.entries(t.variant_a.kpi_scores).map(([k, v]: [string, any]) => (
+                                <div key={k} className="text-center text-xs">
+                                  <div className="font-mono font-bold text-red-500">{String(v)}</div>
+                                  <div className="text-red-400 text-[10px]">{k}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        <div className="rounded-xl p-4 border border-green-100 bg-green-50/50">
+                          <div className="text-xs font-bold text-green-700 mb-2 uppercase tracking-wide">Variant B — GEOcare 최적화</div>
+                          {t.variant_b?.schemas && (
+                            <div className="flex flex-wrap gap-1">
+                              {t.variant_b.schemas.map((s: string, i: number) => (
+                                <span key={i} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                          {t.variant_b?.features && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {t.variant_b.features.map((f: string, i: number) => (
+                                <span key={i} className="px-2 py-0.5 bg-green-50 text-green-600 rounded text-xs border border-green-200">{f}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Verdict */}
+                      {t.winner_variant && (
+                        <div className="rounded-xl p-5 text-center" style={{ background: color + "10", border: "1px solid " + color + "30" }}>
+                          <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color }}>🏆 분석 결론</div>
+                          <p className="text-sm text-gray-700 leading-relaxed">
+                            GEOcare 최적화 사이트는 <strong>{diff}점</strong>의 차이로 AI 검색 엔진 인용 준비도가 우수합니다.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Link to demo */}
+                      {analysisStatus?.brand?.brandhub_slug && (
+                        <a href={"https://geocare.pages.dev/" + analysisStatus.brand.brandhub_slug + "/demo/"} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed hover:border-solid transition-all text-sm font-medium"
+                          style={{ borderColor: color + "60", color }}>
+                          <ExternalLink className="w-4 h-4" /> Brand Hub A/B 데모 페이지에서 전체 분석 보기
+                        </a>
+                      )}
                     </div>
+                  )}
+                </div>
+              );
+            })}
 
-                    {/* Verdict */}
-                    {abSelectedTest.winner_variant && (
-                      <div className="rounded-xl p-5 text-center" style={{ background: `${color}10`, border: `1px solid ${color}30` }}>
-                        <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color }}>🏆 분석 결론</div>
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          GEOcare 최적화 사이트는 <strong>{Number(abSelectedTest.score_b_result) - Number(abSelectedTest.score_a_baseline)}점</strong>의 차이로
-                          AI 검색 엔진 인용 준비도가 우수합니다.
-                          특히 <strong>llms.txt, FAQ 스키마, JSON-LD</strong> 영역에서 가장 큰 개선이 확인됩니다.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Description */}
-                    {abSelectedTest.description && (
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <p className="text-sm text-gray-600">{abSelectedTest.description}</p>
-                      </div>
-                    )}
-
-                    {/* Variant Details */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="rounded-xl p-4 border border-red-100 bg-red-50/50">
-                        <div className="text-xs font-bold text-red-600 mb-2 uppercase">Variant A — 원본</div>
-                        {abSelectedTest.variant_a?.note && (
-                          <p className="text-sm text-red-500">{abSelectedTest.variant_a.note}</p>
-                        )}
-                      </div>
-                      <div className="rounded-xl p-4 border border-green-100 bg-green-50/50">
-                        <div className="text-xs font-bold text-green-700 mb-2 uppercase">Variant B — GEOcare</div>
-                        {abSelectedTest.variant_b?.schemas && (
-                          <div className="flex flex-wrap gap-1">
-                            {abSelectedTest.variant_b.schemas.map((s: string, i: number) => (
-                              <span key={i} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">{s}</span>
-                            ))}
-                          </div>
-                        )}
-                        {abSelectedTest.variant_b?.features && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {abSelectedTest.variant_b.features.map((f: string, i: number) => (
-                              <span key={i} className="px-2 py-0.5 bg-green-50 text-green-600 rounded text-xs border border-green-200">{f}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+            {/* No Tests — Rich explanation */}
+            {!abTestsLoading && abTests.length === 0 && (
+              <div className="space-y-4">
+                <div className="rounded-xl border-2 border-dashed border-gray-200 p-8 text-center">
+                  <FlaskConical className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h4 className="text-base font-bold text-gray-700 mb-2">A/B 테스트를 시작하세요</h4>
+                  <p className="text-sm text-gray-500 max-w-lg mx-auto leading-relaxed">
+                    JSON-LD 구조화 데이터를 적용하기 전(A)과 후(B)의 AI 검색 인용 준비도를 비교합니다.
+                    GEOcare.AI가 자동으로 7개 항목(JSON-LD, FAQ 스키마, llms.txt, 콘텐츠 깊이, 메타태그, 로딩속도, AI 인용가능성)을 가중 평가하여 종합 점수를 산출합니다.
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  {[
+                    { icon: "1️⃣", title: "현재 상태 측정", desc: "원본 사이트의 GEO 점수를 기준선(Baseline)으로 기록" },
+                    { icon: "2️⃣", title: "최적화 적용", desc: "JSON-LD + FAQ + llms.txt 등 GEOcare 최적화 적용" },
+                    { icon: "3️⃣", title: "효과 비교", desc: "SoM 점유율 변화와 AI 인용 비율로 실제 효과 측정" },
+                  ].map((step, i) => (
+                    <div key={i} className="p-4 bg-gray-50 rounded-xl">
+                      <div className="text-2xl mb-2">{step.icon}</div>
+                      <div className="text-sm font-bold text-gray-700">{step.title}</div>
+                      <div className="text-xs text-gray-500 mt-1">{step.desc}</div>
                     </div>
-                  </div>
-                )}
-              </>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}
 
-        {/* ──── SERVICES TAB ──── */}
+                {/* ──── SERVICES TAB ──── */}
         {activeSection === "services" && (
           <div className="space-y-8">
             <section>
