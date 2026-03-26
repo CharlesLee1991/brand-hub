@@ -92,8 +92,8 @@ interface ChatMessage {
 function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-sm font-medium text-gray-600 w-28 shrink-0">{label}</span>
-      <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+      <span className="text-sm font-medium text-gray-400 w-28 shrink-0">{label}</span>
+      <div className="flex-1 rounded-full h-3 overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
         <div
           className="h-full rounded-full transition-all duration-1000 ease-out"
           style={{ width: `${score}%`, backgroundColor: color }}
@@ -162,7 +162,7 @@ function PackageCard({
           추천
         </span>
       )}
-      <h3 className="text-lg font-bold text-gray-900">{tier}</h3>
+      <h3 className="text-lg font-bold text-white">{tier}</h3>
       <p className="text-sm text-gray-500 mt-1">{name}</p>
       <p className="text-2xl font-black mt-3" style={{ color }}>
         {price}
@@ -197,7 +197,7 @@ function EeatReportInline({ efUrl, clientSlug }: { efUrl: string; clientSlug: st
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border p-8 flex items-center justify-center">
+      <div className="rounded-2xl p-8 flex items-center justify-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border-glass)" }}>
         <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
       </div>
     );
@@ -274,7 +274,7 @@ function CitationMoatTab({ efUrl, clientSlug }: { efUrl: string; clientSlug: str
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">🛡️ Citation Moat™ 리포트</h2>
+          <h2 className="text-lg font-bold text-white">🛡️ Citation Moat™ 리포트</h2>
           <p className="text-sm text-gray-500 mt-1">AI 검색엔진이 이 브랜드를 얼마나 신뢰하고 인용하는지 분석합니다.</p>
         </div>
         <button
@@ -383,7 +383,7 @@ function ReportIframeTab({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">{icon} {title}</h2>
+          <h2 className="text-lg font-bold text-white">{icon} {title}</h2>
           <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
         </div>
         <button
@@ -1500,7 +1500,7 @@ export default function ClientPage() {
   /* ── Auth loading state ── */
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-deep)" }}>
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
@@ -1514,12 +1514,12 @@ export default function ClientPage() {
 
   if (!canAccess(partner, client)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-deep)" }}>
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">403</h1>
-          <p className="text-gray-600 mb-2">접근 권한이 없습니다.</p>
+          <h1 className="text-4xl font-bold text-white mb-4">403</h1>
+          <p className="text-gray-400 mb-2">접근 권한이 없습니다.</p>
           <p className="text-sm text-gray-400 mb-6">이 고객사에 대한 열람 권한이 없습니다.</p>
-          <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-600 hover:underline text-sm">다른 계정으로 로그인</button>
+          <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-400 hover:underline text-sm">다른 계정으로 로그인</button>
         </div>
       </div>
     );
@@ -1528,7 +1528,7 @@ export default function ClientPage() {
   /* ── Data loading ── */
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-deep)" }}>
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
@@ -1537,11 +1537,11 @@ export default function ClientPage() {
   /* ── 404 state ── */
   if (!hubConfig) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-deep)" }}>
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-          <p className="text-gray-600 mb-6">등록되지 않은 파트너입니다.</p>
-          <Link href="/" className="text-blue-600 hover:underline">
+          <h1 className="text-4xl font-bold text-white mb-4">404</h1>
+          <p className="text-gray-400 mb-6">등록되지 않은 파트너입니다.</p>
+          <Link href="/" className="text-blue-400 hover:underline">
             홈으로 돌아가기
           </Link>
         </div>
@@ -1578,12 +1578,15 @@ export default function ClientPage() {
   ].filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen relative" style={{ background: "var(--bg-deep)" }}>
+      <div className="bg-ambient" />
+      <div className="bg-noise" />
+      <div className="relative z-10">
       {/* ════ Header ════ */}
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4">
-          <Link href={isSubdomain ? "/" : `/${partner}`} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+      <header className="sticky top-0 z-50" style={{ background: "rgba(10,14,26,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid var(--border-glass)" }}>
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center gap-4">
+          <Link href={isSubdomain ? "/" : `/${partner}`} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-400" />
           </Link>
           <Link href={isSubdomain ? "/" : `/${partner}`} className="hover:opacity-80 transition-opacity">
             <div
@@ -1594,35 +1597,35 @@ export default function ClientPage() {
             </div>
           </Link>
           <Link href={isSubdomain ? "/" : `/${partner}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
-            <div className="flex items-center gap-2 text-xs text-gray-400 mb-0.5">
+            <div className="flex items-center gap-2 text-xs text-gray-500 mb-0.5">
               <span>{hubConfig.brand_name}</span>
               <span>›</span>
-              <span className="text-gray-600 font-medium">{eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}</span>
+              <span className="text-gray-300 font-medium">{eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client}</span>
             </div>
-            <h1 className="font-bold text-gray-900 truncate">
+            <h1 className="font-bold text-white truncate">
               {eeatData?.analysis?.industry ? eeatData.analysis.industry + " — " : ""}{client}
             </h1>
           </Link>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs text-gray-400 hidden sm:inline">{displayName || user?.email}</span>
-            {isAdmin && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">Admin</span>}
-            <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-gray-400 hover:text-gray-600" title="로그아웃">
+            <span className="text-xs text-gray-500 hidden sm:inline">{displayName || user?.email}</span>
+            {isAdmin && <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded font-medium">Admin</span>}
+            <button onClick={() => signOut().then(() => router.replace("/login"))} className="text-gray-500 hover:text-white transition-colors" title="로그아웃">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* ── Tab Navigation ── */}
-        <div className="max-w-5xl mx-auto px-4">
-          <nav className="flex gap-1 -mb-px">
+        <div className="max-w-7xl mx-auto px-6">
+          <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveSection(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeSection === tab.key
-                    ? "border-current text-gray-900"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    ? "border-current text-white"
+                    : "border-transparent text-gray-500 hover:text-gray-300"
                 }`}
                 style={activeSection === tab.key ? { color } : {}}
               >
@@ -1635,7 +1638,7 @@ export default function ClientPage() {
       </header>
 
       {/* ════ Content ════ */}
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8">
         {/* ──── OVERVIEW TAB — Authority Index ──── */}
         {activeSection === "overview" && (
           <div className="space-y-8">
@@ -1844,7 +1847,7 @@ export default function ClientPage() {
             <section className="bg-white rounded-2xl border p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">E-E-A-T 스코어카드</h3>
+                  <h3 className="text-lg font-bold text-white">E-E-A-T 스코어카드</h3>
                   <p className="text-sm text-gray-500">
                     {eeatData?.analysis.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "")} — {eeatData?.analysis.industry}
                   </p>
@@ -3705,6 +3708,7 @@ export default function ClientPage() {
           </div>
         )}
       </main>
+      </div>{/* z-10 */}
     </div>
   );
 }
