@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ko" className="dark">
+    <html lang="ko">
       <head>
         <link
           rel="preload"
@@ -24,7 +24,7 @@ export default function RootLayout({
           as="style"
         />
       </head>
-      <body className="font-sans antialiased bg-[#0A0E1A] text-[#F0F2F8]">
+      <body className="font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
