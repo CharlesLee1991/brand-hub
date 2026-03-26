@@ -3284,38 +3284,65 @@ export default function ClientPage() {
             {!abTestsLoading && abSelectedTest && (() => {
               const t = abSelectedTest;
               const origUrl = t.original_url || analysisStatus?.brand?.site_domain || "";
-              const hubUrl = t.hub_url;
+              const hubUrl = t.hub_url || (analysisStatus?.brand?.brandhub_slug ? "https://geocare.pages.dev/" + analysisStatus.brand.brandhub_slug + "/" : null);
               const origDomain = origUrl.replace(/https?:\/\//, "").replace(/\/$/, "");
-              const hubDomain = hubUrl ? hubUrl.replace(/https?:\/\//, "").replace(/\/$/, "") : null;
+              const hubDomain = hubUrl ? hubUrl.replace(/https?:\/\//, "").replace(/\/$/, "") : "geocare.pages.dev/{slug}/";
               const origScore = t.score_a_baseline ?? abOriginalJsonld?.url_analysis?.total_score ?? "—";
               const hubScore = t.score_b_result ?? t.variant_b?.expected_score ?? "—";
               const diff = typeof origScore === "number" && typeof hubScore === "number" ? hubScore - origScore : null;
 
+              const comparisonPrompt = `다음 두 웹사이트의 AI 검색 최적화(GEO) 상태를 비교 분석해줘.
+
+사이트 A (고객 원본): ${origUrl}
+사이트 B (GEOcare Brand Hub): ${hubUrl || "https://geocare.pages.dev/" + (analysisStatus?.brand?.brandhub_slug || "example") + "/"}
+
+아래 7개 항목을 각각 100점 만점으로 평가하고, 표 형식으로 비교해줘:
+1. JSON-LD 구조화 데이터 (가중치 20%) — Schema.org 타입 수, 구현 품질
+2. 메타 태그 품질 (가중치 15%) — title, description, OG 태그, canonical
+3. FAQ 스키마 (가중치 15%) — FAQPage 마크업 유무, Q&A 구조화
+4. 콘텐츠 깊이 (가중치 15%) — 페이지 수, 정보량, 시맨틱 HTML
+5. 로딩 속도 (가중치 10%) — 응답 시간, CDN, 최적화
+6. llms.txt / AI 가이드 (가중치 10%) — llms.txt 유무, robots.txt AI 크롤러 허용
+7. AI 인용 가능성 (가중치 15%) — 종합적으로 AI가 인용하기 좋은 구조인지
+
+각 항목별 점수와 함께, 전체 가중 평균 종합 점수도 계산해줘.
+마지막에 "어느 사이트가 AI 검색 엔진(ChatGPT, Perplexity, Google AI Overview)에 더 잘 인용될까?"에 대한 결론을 내려줘.`;
+
               return (
                 <div className="space-y-5">
+                  {/* ── 비교 분석 프롬프트 (상단) ── */}
+                  <div className="bg-gray-900 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-800">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-200">📋 GEO 비교 분석 프롬프트</span>
+                        <span className="text-xs text-gray-500">— 복사 후 ChatGPT / Perplexity / Claude / Gemini에 질의하세요</span>
+                      </div>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(comparisonPrompt); setAbCopied(99); setTimeout(() => setAbCopied(false), 2000); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-500 text-white transition-colors"
+                      >
+                        {abCopied === 99 ? <><CheckCircle className="w-3.5 h-3.5" /> 복사 완료!</> : <><FileText className="w-3.5 h-3.5" /> 프롬프트 복사</>}
+                      </button>
+                    </div>
+                    <pre className="px-4 py-3 text-xs text-green-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto">{comparisonPrompt}</pre>
+                  </div>
+
                   {/* ── URL 비교 헤더 ── */}
                   <div className="grid grid-cols-2 gap-4">
                     <a href={origUrl} target="_blank" rel="noopener noreferrer" className="block p-4 rounded-xl border-2 border-red-200 bg-red-50/50 hover:border-red-300 transition-all group">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-red-600 uppercase tracking-wide">Site A — 원본 사이트</span>
+                        <span className="text-xs font-bold text-red-600 uppercase tracking-wide">Site A — 고객 원본 사이트</span>
                         <ExternalLink className="w-3 h-3 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                       <div className="text-sm font-mono text-red-700 truncate">{origDomain}</div>
                     </a>
-                    {hubUrl ? (
-                      <a href={hubUrl} target="_blank" rel="noopener noreferrer" className="block p-4 rounded-xl border-2 border-green-200 bg-green-50/50 hover:border-green-300 transition-all group">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-green-700 uppercase tracking-wide">Site B — GEOcare Brand Hub</span>
-                          <ExternalLink className="w-3 h-3 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                        <div className="text-sm font-mono text-green-700 truncate">{hubDomain}</div>
-                      </a>
-                    ) : (
-                      <div className="p-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center">
-                        <span className="text-xs font-bold text-gray-400 uppercase">Site B — Brand Hub 미구축</span>
-                        <span className="text-xs text-gray-400 mt-1">구축 후 비교 분석이 가능합니다</span>
+                    <a href={hubUrl || "#"} target="_blank" rel="noopener noreferrer" className="block p-4 rounded-xl border-2 border-green-200 bg-green-50/50 hover:border-green-300 transition-all group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-green-700 uppercase tracking-wide">Site B — GEOcare Brand Hub</span>
+                        <ExternalLink className="w-3 h-3 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
-                    )}
+                      <div className="text-sm font-mono text-green-700 truncate">{hubDomain}</div>
+                    </a>
                   </div>
 
                   {/* ── 종합 점수 비교 ── */}
@@ -3334,7 +3361,6 @@ export default function ClientPage() {
                     <div className="flex flex-col items-center justify-center">
                       <div className="text-3xl font-black text-gray-300">VS</div>
                       {diff != null && <div className="text-lg font-bold mt-1" style={{ color }}>+{diff}점</div>}
-                      {diff == null && hubScore !== "—" && <div className="text-sm text-gray-400 mt-1">예상 개선</div>}
                     </div>
                     <div className="bg-white rounded-xl p-6 text-center border border-green-100 shadow-sm">
                       <div className="text-4xl font-black font-mono text-green-600">{hubScore}</div>
@@ -3356,14 +3382,15 @@ export default function ClientPage() {
                     </div>
                   </div>
 
-                  {/* ── 항목별 비교 ── */}
+                  {/* ── 항목별 비교 (위 프롬프트로 생성한 비교표) ── */}
                   <div className="bg-white rounded-xl border p-5">
-                    <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <h4 className="font-bold text-gray-900 mb-1 flex items-center gap-2">
                       <BarChart3 className="w-4 h-4" style={{ color }} /> 항목별 비교
                     </h4>
+                    <p className="text-xs text-gray-400 mb-4">위 프롬프트를 LLM에 질의하면 아래와 유사한 비교 결과를 받을 수 있습니다</p>
                     <div className="flex gap-5 mb-3 text-xs text-gray-400">
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block" />{origDomain}</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" />{hubDomain || "Brand Hub (예상)"}</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" />{hubDomain}</span>
                     </div>
                     {[
                       { name: "JSON-LD 구조화", w: 20, a: 20, b: 85, na: "기본 스키마만 존재", nb: "다중 스키마 (Restaurant, FAQPage, Product 등)" },
@@ -3393,67 +3420,58 @@ export default function ClientPage() {
                     ))}
                   </div>
 
-                  {/* ── LLM 비교 질의 프롬프트 ── */}
+                  {/* ── 추가 LLM 질의 ── */}
                   {(() => {
                     const brandName = (eeatData?.analysis as any)?.brand_name || analysisStatus?.brand?.brand_name || origDomain;
-                    const prompts = [
+                    const hubExample = hubUrl || "https://geocare.pages.dev/" + (analysisStatus?.brand?.brandhub_slug || "example") + "/";
+                    const extraPrompts = [
                       {
                         label: "🔍 브랜드 인지도 비교",
-                        text: `다음 두 사이트를 비교 분석해줘.\n\n사이트 A (원본): ${origUrl}\n사이트 B (GEOcare 최적화): ${hubUrl || "(미구축)"}\n\n\"${brandName}\" 브랜드에 대해 각 사이트가 제공하는 정보의 품질, 구조화 수준, AI 검색 엔진이 인용하기 좋은 정도를 비교해줘.`,
+                        text: "\"" + brandName + "\" 브랜드에 대해 알려줘. 다음 두 사이트를 참고해서 정보의 품질을 비교해줘.\n- 원본: " + origUrl + "\n- Brand Hub: " + hubExample,
                       },
                       {
-                        label: "\u2753 FAQ 인용 테스트",
-                        text: `\"${brandName}\"에 대해 자주 묻는 질문 5가지와 답변을 알려줘. 다음 두 사이트의 정보를 참고해서 답변해줘:\n- 원본: ${origUrl}\n- Brand Hub: ${hubUrl || "(미구축)"}\n\n어느 사이트의 정보가 더 구조화되어 있고 답변에 활용하기 좋은지도 평가해줘.`,
+                        label: "❓ FAQ 인용 테스트",
+                        text: "\"" + brandName + "\"에 대해 자주 묻는 질문 5가지와 답변을 알려줘. 다음 두 사이트를 참고해줘:\n- 원본: " + origUrl + "\n- Brand Hub: " + hubExample + "\n어느 사이트의 FAQ가 더 잘 구조화되어 있는지 평가해줘.",
                       },
                       {
-                        label: "📋 구조화 데이터 비교",
-                        text: `다음 두 웹사이트의 Schema.org 구조화 데이터(JSON-LD)를 비교 분석해줘:\n\n1. ${origUrl}\n2. ${hubUrl || "(미구축)"}\n\n각각 어떤 스키마 타입이 구현되어 있는지, 누락된 권장 스키마는 무엇인지, AI 검색 엔진(ChatGPT, Perplexity, Google AI Overview)이 인용할 때 어느 쪽이 유리한지 설명해줘.`,
-                      },
-                      {
-                        label: "🤖 AI 검색 최적화 진단",
-                        text: `다음 두 사이트의 AI 검색 최적화(GEO) 상태를 종합 진단해줘:\n\n원본: ${origUrl}\nBrand Hub: ${hubUrl || "(미구축)"}\n\nE-E-A-T(경험, 전문성, 권위, 신뢰), 구조화 데이터, llms.txt 유무, FAQ 스키마, 메타태그 품질, 콘텐츠 깊이를 항목별로 비교하고 점수(100점 만점)를 매겨줘.`,
+                        label: "🤖 E-E-A-T 종합 진단",
+                        text: "다음 두 사이트의 E-E-A-T(경험, 전문성, 권위, 신뢰) 수준을 비교해줘:\n- 원본: " + origUrl + "\n- Brand Hub: " + hubExample + "\n각 항목별 점수(100점)와 개선 방향을 제시해줘.",
                       },
                     ];
                     return (
                       <div className="space-y-2">
-                        <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                          LLM 비교 질의 프롬프트
-                          <span className="text-xs text-gray-400 font-normal">— 복사 후 ChatGPT / Perplexity / Claude / Gemini에 질의</span>
-                        </h4>
-                        {prompts.map((p, idx) => (
+                        <h4 className="text-sm font-bold text-gray-900">추가 LLM 질의 프롬프트</h4>
+                        {extraPrompts.map((p, idx) => (
                           <div key={idx} className="bg-gray-50 border rounded-xl overflow-hidden">
                             <div className="flex items-center justify-between px-4 py-2 bg-gray-100">
                               <span className="text-sm">{p.label}</span>
                               <button
-                                onClick={() => { navigator.clipboard.writeText(p.text.replace(/\n/g, "\n")); setAbCopied(idx); setTimeout(() => setAbCopied(false), 2000); }}
+                                onClick={() => { navigator.clipboard.writeText(p.text); setAbCopied(idx); setTimeout(() => setAbCopied(false), 2000); }}
                                 className="flex items-center gap-1 px-3 py-1 rounded text-xs bg-white border hover:bg-gray-50 transition-colors"
                                 style={abCopied === idx ? { color: "#10b981", borderColor: "#10b981" } : {}}
                               >
                                 {abCopied === idx ? <><CheckCircle className="w-3 h-3" /> 복사됨</> : <><FileText className="w-3 h-3" /> 복사</>}
                               </button>
                             </div>
-                            <div className="px-4 py-3 text-sm text-gray-700 leading-relaxed whitespace-pre-line select-all cursor-text">{p.text.replace(/\n/g, "\n")}</div>
+                            <div className="px-4 py-3 text-sm text-gray-700 leading-relaxed whitespace-pre-line select-all cursor-text">{p.text}</div>
                           </div>
                         ))}
                       </div>
                     );
                   })()}
 
-                  {/* ── Brand Hub 데모 링크 ── */}
-                  {hubUrl && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <a href={hubUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium hover:shadow-sm transition-all"
-                        style={{ borderColor: color, color }}>
-                        <ExternalLink className="w-4 h-4" /> Brand Hub 사이트 방문
-                      </a>
-                      <a href={hubUrl.replace(/\/$/, "") + "/demo/"} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 p-3 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-all"
-                        style={{ background: color }}>
-                        <FlaskConical className="w-4 h-4" /> A/B 분석 데모 보기
-                      </a>
-                    </div>
-                  )}
+                  {/* ── 링크 버튼 ── */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <a href={origUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium text-red-600 border-red-200 hover:bg-red-50 transition-all">
+                      <ExternalLink className="w-4 h-4" /> 원본 사이트 방문
+                    </a>
+                    <a href={hubUrl || "#"} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 p-3 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-all"
+                      style={{ background: color }}>
+                      <ExternalLink className="w-4 h-4" /> Brand Hub 사이트 방문
+                    </a>
+                  </div>
 
                   {/* ── 결론 ── */}
                   {diff != null && (
@@ -3476,14 +3494,13 @@ export default function ClientPage() {
                   <FlaskConical className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <h4 className="text-base font-bold text-gray-700 mb-2">GEO A/B 비교를 시작하세요</h4>
                   <p className="text-sm text-gray-500 max-w-lg mx-auto leading-relaxed">
-                    고객의 현재 사이트와 GEOcare Brand Hub로 구축한 최적화 사이트를 비교합니다.
-                    JSON-LD, FAQ 스키마, llms.txt, 콘텐츠 깊이 등 7개 항목을 가중 평가하여 AI 검색 인용 준비도를 측정합니다.
+                    고객의 현재 사이트와 GEOcare Brand Hub(geocare.pages.dev)로 구축한 최적화 사이트를 비교합니다.
                   </p>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div className="p-4 bg-red-50 rounded-xl border border-red-100"><div className="text-2xl mb-2">1️⃣</div><div className="text-sm font-bold text-gray-700">원본 사이트 분석</div><div className="text-xs text-gray-500 mt-1">현재 GEO 점수 측정</div></div>
-                  <div className="p-4 bg-green-50 rounded-xl border border-green-100"><div className="text-2xl mb-2">2️⃣</div><div className="text-sm font-bold text-gray-700">Brand Hub 구축</div><div className="text-xs text-gray-500 mt-1">최적화 사이트 생성</div></div>
-                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-100"><div className="text-2xl mb-2">3️⃣</div><div className="text-sm font-bold text-gray-700">효과 비교 제시</div><div className="text-xs text-gray-500 mt-1">영업 도구로 활용</div></div>
+                  <div className="p-4 bg-green-50 rounded-xl border border-green-100"><div className="text-2xl mb-2">2️⃣</div><div className="text-sm font-bold text-gray-700">Brand Hub 구축</div><div className="text-xs text-gray-500 mt-1">geocare.pages.dev에 최적화 사이트</div></div>
+                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-100"><div className="text-2xl mb-2">3️⃣</div><div className="text-sm font-bold text-gray-700">비교 제시</div><div className="text-xs text-gray-500 mt-1">프롬프트 복사 → LLM 질의 → 영업 활용</div></div>
                 </div>
               </div>
             )}
