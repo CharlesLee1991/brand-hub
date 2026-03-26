@@ -1095,7 +1095,8 @@ export default function ClientPage() {
   const [abTestsLoading, setAbTestsLoading] = useState(false);
   const [abSelectedTest, setAbSelectedTest] = useState<any>(null);
   const [abLiveJsonld, setAbLiveJsonld] = useState<any>(null);
-  const [abCopied, setAbCopied] = useState(false);
+  const [abCopied, setAbCopied] = useState<number | false>(false);
+  const [abFetched, setAbFetched] = useState(false);
 
   const checkWpConnection = async () => {
     try {
@@ -1372,17 +1373,23 @@ export default function ClientPage() {
 
   /* ── A/B Test lazy fetch ── */
   useEffect(() => {
-    if (activeSection === "abtest" && abTests.length === 0 && client) {
+    if (activeSection === "abtest" && !abFetched && client) {
       setAbTestsLoading(true);
+      setAbFetched(true);
       const sb = createClient();
       const domain = analysisStatus?.brand?.site_domain?.replace(/https?:\/\//, "").replace(/\/$/, "") || "";
       sb.from("bmp_jsonld_ab_tests")
         .select("*")
         .order("created_at", { ascending: false })
         .then(({ data }: { data: any }) => {
-          const filtered = data?.filter((t: any) => !domain || t.site_domain.includes(domain) || domain.includes(t.site_domain)) || data || [];
-          setAbTests(filtered);
-          if (filtered.length > 0) setAbSelectedTest(filtered[0]);
+          const all = data || [];
+          const filtered = domain ? all.filter((t: any) => {
+            const td = t.site_domain.replace(/https?:\/\//, "").replace(/\/$/, "");
+            return td.includes(domain) || domain.includes(td);
+          }) : all;
+          const result = filtered.length > 0 ? filtered : all;
+          setAbTests(result);
+          if (result.length > 0) setAbSelectedTest(result[0]);
           setAbTestsLoading(false);
         });
       // Fetch live JSON-LD
@@ -3263,26 +3270,64 @@ export default function ClientPage() {
               <p className="text-sm text-gray-500 mt-1">원본 사이트 vs GEOcare 최적화 — AI 검색 인용 준비도(GEO Score) 비교 분석</p>
             </div>
 
-            {/* ── LLM 질의 스크립트 ── */}
-            <div className="bg-gray-900 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 bg-gray-800">
-                <span className="text-xs text-gray-400 font-mono">LLM 질의용 API 스크립트</span>
-                <button
-                  onClick={() => {
-                    const script = `curl -s "https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url=${encodeURIComponent(analysisStatus?.brand?.site_domain || "https://example.com")}"`;
-                    navigator.clipboard.writeText(script);
-                    setAbCopied(true);
-                    setTimeout(() => setAbCopied(false), 2000);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded text-xs bg-gray-700 hover:bg-gray-600 text-green-400 transition-colors"
-                >
-                  {abCopied ? <><CheckCircle className="w-3 h-3" /> 복사됨!</> : <><FileText className="w-3 h-3" /> 복사</>}
-                </button>
-              </div>
-              <pre className="px-4 py-3 text-[11px] text-green-400 font-mono overflow-x-auto whitespace-pre-wrap break-all">
-{`curl -s "https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url=${analysisStatus?.brand?.site_domain || "https://example.com"}"`}
-              </pre>
-            </div>
+            {/* ── LLM 질의 프롬프트 (복사하여 ChatGPT / Perplexity / Claude 등에 질의) ── */}
+            {(() => {
+              const domain = analysisStatus?.brand?.site_domain?.replace(/https?:\/\//, "") || "example.com";
+              const brandName = (eeatData?.analysis as any)?.brand_name || analysisStatus?.brand?.brand_name || domain;
+              const prompts = [
+                {
+                  label: "🔍 브랜드 인지도 테스트",
+                  desc: "AI가 이 브랜드를 알고 있는지, 어떤 정보를 인용하는지 확인",
+                  text: `"${brandName}" 브랜드에 대해 알려줘. 공식 웹사이트(${domain})의 정보를 포함해서 이 브랜드의 주요 제품/서비스, 특징, 경쟁 우위를 상세히 설명해줘.`,
+                },
+                {
+                  label: "❓ FAQ 인용 테스트",
+                  desc: "AI가 사이트의 FAQ 콘텐츠를 인용하는지 확인",
+                  text: `${brandName}(${domain})에 대해 자주 묻는 질문 5가지와 답변을 알려줘. 가능하면 공식 사이트의 정보를 기반으로 답변해줘.`,
+                },
+                {
+                  label: "🏆 경쟁사 비교 테스트",
+                  desc: "AI가 경쟁 비교 시 이 브랜드를 추천하는지 확인",
+                  text: `${brandName}(${domain})과 동종 업계 경쟁사를 비교해줘. ${brandName}의 강점과 약점, 그리고 어떤 고객에게 추천하는지 알려줘.`,
+                },
+                {
+                  label: "📋 구조화 데이터 검증",
+                  desc: "AI가 JSON-LD 구조화 데이터를 인식하는지 확인",
+                  text: `${domain} 웹사이트의 Schema.org 구조화 데이터(JSON-LD)를 분석해줘. 어떤 스키마 타입이 구현되어 있고, 누락된 권장 스키마는 무엇인지 알려줘.`,
+                },
+                {
+                  label: "🤖 AI 검색 최적화 진단",
+                  desc: "AI 검색 엔진에서의 가시성 종합 진단",
+                  text: `${domain} 웹사이트가 AI 검색 엔진(ChatGPT, Perplexity, Google AI Overview)에서 잘 인용되기 위해 어떤 점을 개선해야 하는지 분석해줘. 현재 사이트의 E-E-A-T(경험, 전문성, 권위, 신뢰) 수준과 구조화 데이터 상태를 포함해서 진단해줘.`,
+                },
+              ];
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="text-sm font-bold text-gray-900">LLM 질의 프롬프트</h4>
+                    <span className="text-xs text-gray-400">— 아래 프롬프트를 복사하여 ChatGPT / Perplexity / Claude / Gemini에 질의하세요</span>
+                  </div>
+                  {prompts.map((p, idx) => (
+                    <div key={idx} className="bg-gray-50 border rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2 bg-gray-100">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{p.label}</span>
+                          <span className="text-xs text-gray-400">{p.desc}</span>
+                        </div>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(p.text); setAbCopied(idx); setTimeout(() => setAbCopied(false), 2000); }}
+                          className="flex items-center gap-1 px-3 py-1 rounded text-xs bg-white border hover:bg-gray-50 transition-colors"
+                          style={abCopied === idx ? { color: "#10b981", borderColor: "#10b981" } : {}}
+                        >
+                          {abCopied === idx ? <><CheckCircle className="w-3 h-3" /> 복사됨</> : <><FileText className="w-3 h-3" /> 복사</>}
+                        </button>
+                      </div>
+                      <div className="px-4 py-3 text-sm text-gray-700 leading-relaxed select-all cursor-text">{p.text}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* ── 현재 사이트 JSON-LD 실시간 상태 ── */}
             <div className="bg-white rounded-xl border p-5">
