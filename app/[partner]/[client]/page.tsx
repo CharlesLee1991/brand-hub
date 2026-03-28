@@ -1036,7 +1036,7 @@ export default function ClientPage() {
     client_analyses: { slug: string; url: string; industry: string; score: number; grade: string }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "compliance" | "competitor" | "contentlab" | "brandhub" | "jsonld" | "abtest" | "services" | "chat">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "analysis" | "citation" | "som" | "compliance" | "competitor" | "contentlab" | "brandhub" | "jsonld" | "lift" | "abtest" | "services" | "chat">("overview");
 
   // Chat states
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1562,6 +1562,7 @@ export default function ClientPage() {
     { key: "contentlab", label: "콘텐츠 랩", icon: Wand2 },
     { key: "brandhub", label: "Brand Hub", icon: ExternalLink },
     { key: "jsonld", label: "JSON-LD 설치", icon: FileText },
+    { key: "lift", label: "LIFT 설치", icon: Zap },
     { key: "abtest", label: "A/B 테스트", icon: FlaskConical },
     { key: "services", label: "서비스", icon: Award },
     { key: "chat", label: "AI 어시스턴트", icon: MessageSquare },
@@ -3265,6 +3266,197 @@ export default function ClientPage() {
                   <tr><td className="py-2">추천 대상</td><td>마케터</td><td>개발팀</td><td>개발팀</td></tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* ──── LIFT TRACKER TAB ──── */}
+        {activeSection === "lift" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">⚡ LIFT Tracker 설치 도구</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                고객 사이트에 LIFT Tracker(기여분석 수집 태그)를 설치하는 방법입니다. GTM 방식과 서버사이드 API 방식을 제공합니다.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4 mb-6">
+                <div className="p-4 rounded-xl border-2 border-blue-400 bg-blue-50">
+                  <h4 className="font-bold text-blue-800 mb-1">방법 1: GTM 자동 삽입 (권장) ✅</h4>
+                  <p className="text-xs text-blue-700">GTM 컨테이너에 LIFT 수집 태그를 원클릭 자동 설치. 고객사의 GTM 편집 권한만 있으면 됩니다.</p>
+                </div>
+                <div className="p-4 rounded-xl border-2 border-gray-300 bg-gray-50">
+                  <h4 className="font-bold text-gray-800 mb-1">방법 2: GTM 수동 삽입</h4>
+                  <p className="text-xs text-gray-600">GTM 권한을 주기 어려운 경우, 고객사가 직접 태그를 추가합니다.</p>
+                </div>
+              </div>
+
+              {/* GTM 자동 삽입 안내 */}
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-900 mb-2">🏷️ 방법 1: GTM 자동 삽입 (권장)</h4>
+                <p className="text-xs text-gray-500 mb-3">GTM 컨테이너에 LIFT 수집 태그를 원클릭 자동 설치합니다.</p>
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-3">
+                  <p className="font-semibold text-blue-900 text-sm mb-2">고객이 해야 할 일:</p>
+                  <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                    <li>Google Tag Manager (tagmanager.google.com) 접속</li>
+                    <li>해당 사이트의 GTM 컨테이너 선택</li>
+                    <li>관리자 → 컨테이너 사용자 관리 → + (추가)</li>
+                    <li>이메일: <code className="bg-blue-100 px-1 rounded">tagman@bizspring.co.kr</code></li>
+                    <li>권한: &quot;게시&quot; 선택 후 저장</li>
+                    <li>비즈스프링에 완료 회신</li>
+                  </ol>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
+                  <p className="font-semibold text-green-900 text-sm mb-2">비즈스프링이 자동으로 하는 일:</p>
+                  <ul className="text-xs text-green-800 space-y-1 list-disc list-inside">
+                    <li>GTM API로 LIFT Tracker 태그 자동 배포</li>
+                    <li>고객사 추가 작업 없음</li>
+                    <li>기존 GA4 등 다른 태그에 영향 없음</li>
+                  </ul>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                  <p className="font-semibold text-gray-700 text-xs mb-1">수집 범위</p>
+                  <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
+                    <li>UTM 파라미터 또는 외부 유입이 있는 트래픽만 수집 (전체의 10~20%)</li>
+                    <li>페이로드 ~200바이트 — 사이트 성능 영향 없음</li>
+                    <li>GA4와 병렬 전송 (간섭 없음)</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* GTM 수동 삽입 코드 */}
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-900 mb-2">🔧 방법 2: GTM 수동 삽입</h4>
+                <p className="text-xs text-gray-500 mb-2">GTM → 태그 → 새로 만들기 → 커스텀 HTML에 아래 코드 붙여넣기 → 트리거: All Pages</p>
+                <div className="relative">
+                  <pre className="bg-slate-800 text-slate-200 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                    <code id="lift-gtm-code">{`<script>
+(function(){
+  var TC = '고객사_테넌트코드';
+  var EP = 'https://ihzttwgqahhzlrqozleh.supabase.co/functions/v1/lift-collect';
+  var loc = window.location;
+  var ref = document.referrer;
+  var hasUtm = loc.search.indexOf('utm_') > -1;
+  var hasRef = ref && ref.indexOf(loc.hostname) === -1;
+  var sid = sessionStorage.getItem('_lift_sid');
+  if (!sid) { sid = crypto.randomUUID(); sessionStorage.setItem('_lift_sid', sid); }
+  if (hasUtm || hasRef) {
+    var p = new URLSearchParams(loc.search);
+    _send({tc:TC,et:'pageview',url:loc.href,ref:ref,
+      us:p.get('utm_source'),um:p.get('utm_medium'),
+      uc:p.get('utm_campaign'),ut:p.get('utm_term'),
+      ux:p.get('utm_content'),sid:sid,ts:Date.now()});
+  }
+  window._lift = function(name, value) {
+    _send({tc:TC,et:'conversion',en:name,ev:value,
+      url:loc.href,ref:ref,sid:sid,ts:Date.now()});
+  };
+  function _send(d) { try { navigator.sendBeacon(EP, JSON.stringify(d)); } catch(e) {} }
+})();
+</script>`}</code>
+                  </pre>
+                  <button onClick={() => {
+                    const el = document.getElementById("lift-gtm-code");
+                    if (el) { navigator.clipboard.writeText(el.textContent || ""); }
+                  }} className="absolute top-2 right-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded">복사</button>
+                </div>
+                <div className="bg-yellow-50 p-3 rounded-lg mt-2">
+                  <p className="text-xs text-yellow-800"><strong>⚠️ 참고:</strong> <code className="bg-yellow-100 px-1 rounded">고객사_테넌트코드</code> 부분을 비즈스프링에서 발급한 코드로 교체해주세요.</p>
+                </div>
+              </div>
+
+              {/* 전환 수집 코드 */}
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-900 mb-2">🎯 전환 수집 (구매/회원가입 등)</h4>
+                <p className="text-xs text-gray-500 mb-2">사이트의 전환 완료 페이지에서 아래 코드를 호출합니다. GTM 트리거 또는 사이트 코드에서 직접 호출 가능합니다.</p>
+                <div className="relative">
+                  <pre className="bg-slate-800 text-slate-200 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                    <code id="lift-conversion-code">{`// 구매 완료
+_lift('purchase', 59000);
+
+// 회원가입
+_lift('signup');
+
+// 상담 예약
+_lift('consultation');
+
+// 장바구니 담기
+_lift('add_to_cart', 29000);`}</code>
+                  </pre>
+                  <button onClick={() => {
+                    const el = document.getElementById("lift-conversion-code");
+                    if (el) { navigator.clipboard.writeText(el.textContent || ""); }
+                  }} className="absolute top-2 right-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded">복사</button>
+                </div>
+              </div>
+
+              {/* 서버사이드 API */}
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-900 mb-2">🚀 서버사이드 API (향후)</h4>
+                <p className="text-xs text-gray-500 mb-2">서버에서 직접 LIFT 수집 API를 호출하여 데이터를 전송합니다.</p>
+                <div className="relative">
+                  <pre className="bg-slate-800 text-slate-200 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                    <code id="lift-api-code">{`POST https://ihzttwgqahhzlrqozleh.supabase.co/functions/v1/lift-collect
+
+Content-Type: application/json
+
+{
+  "tc": "고객사_테넌트코드",
+  "et": "pageview",
+  "url": "https://고객사.com/product/123",
+  "us": "google",
+  "um": "cpc",
+  "uc": "spring_sale",
+  "sid": "세션ID",
+  "ts": 1711234567890
+}
+
+응답: HTTP 204 (성공) / HTTP 400 (필수 필드 누락)`}</code>
+                  </pre>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText("https://ihzttwgqahhzlrqozleh.supabase.co/functions/v1/lift-collect");
+                  }} className="absolute top-2 right-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded">URL 복사</button>
+                </div>
+              </div>
+            </div>
+
+            {/* 온보딩 흐름 */}
+            <div className="bg-white rounded-2xl border p-6">
+              <h4 className="font-bold text-gray-900 mb-3">📌 고객 온보딩 전체 흐름</h4>
+              <div className="space-y-3">
+                {[
+                  { step: "①", text: "비즈스프링이 테넌트 코드 발급", sub: "예: motive_clientA" },
+                  { step: "②", text: "고객사가 tagman@bizspring.co.kr에 GTM 편집 권한 부여", sub: "" },
+                  { step: "③", text: "비즈스프링이 GTM API로 LIFT 태그 자동 배포", sub: "1분 이내" },
+                  { step: "④", text: "고객사 사이트에 UTM 파라미터로 접속 시 자동 수집 시작", sub: "" },
+                  { step: "⑤", text: "전환 수집이 필요하면 _lift() 코드 추가", sub: "구매완료 페이지 등" },
+                  { step: "⑥", text: "LIFT 대시보드에서 기여분석 결과 확인", sub: "Phase 2" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                    <span className="text-lg font-bold" style={{ color }}>{item.step}</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{item.text}</p>
+                      {item.sub && <p className="text-xs text-gray-500">{item.sub}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* FAQ */}
+            <div className="bg-white rounded-2xl border p-6">
+              <h4 className="font-bold text-gray-900 mb-3">❓ FAQ</h4>
+              <div className="space-y-3">
+                {[
+                  { q: "기존 GA4 태그에 영향이 있나요?", a: "없습니다. LIFT Tracker는 GA4와 완전히 독립적으로 작동합니다." },
+                  { q: "사이트 속도에 영향이 있나요?", a: "페이로드가 ~200바이트이고, sendBeacon API를 사용하므로 페이지 로딩에 영향 없습니다." },
+                  { q: "어떤 데이터를 수집하나요?", a: "UTM 파라미터, 레퍼러, 페이지 URL, 세션 ID만 수집합니다. 개인정보(이름, 이메일 등)는 수집하지 않으며, IP 주소는 해시 처리 후 원본을 삭제합니다." },
+                  { q: "모든 페이지뷰를 수집하나요?", a: "아닙니다. UTM 파라미터가 있거나 외부 사이트에서 유입된 경우에만 수집합니다 (전체 트래픽의 10~20%)." },
+                ].map((faq, i) => (
+                  <div key={i} className="p-3 rounded-lg border border-gray-100">
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Q: {faq.q}</p>
+                    <p className="text-xs text-gray-600">A: {faq.a}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
