@@ -3,12 +3,26 @@ import { useState, useEffect, useCallback } from "react";
 
 const API = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld-tools";
 
-type Tab = "sites" | "validate" | "guide";
+type Tab = "sites" | "validate" | "guide" | "extract";
 interface Site { domain: string; pages: number; types: string[]; latest: string; }
 interface Page { id: number; page_url: string; schema_types: string[]; validation_passed: boolean | null; }
 interface Snippet {
   page_url: string; schema_types: string[];
   install_options: Record<string, { name: string; description: string; ai_visible: boolean; google_visible: boolean; code: string; }>;
+}
+interface PdpResult {
+  success: boolean;
+  completeness_score?: number;
+  extraction_method?: string;
+  needs_vision?: boolean;
+  missing_fields?: string[];
+  final_jsonld?: Record<string, unknown>;
+  error?: string;
+}
+interface PdpHistory {
+  id: string; url: string; site_domain: string; extraction_method: string;
+  completeness_score: number; created_at: string;
+  final_jsonld: Record<string, unknown> | null;
 }
 
 function Badge({ children, variant = "blue" }: { children: React.ReactNode; variant?: "blue" | "green" | "red" | "yellow" }) {
@@ -36,6 +50,11 @@ export default function JsonLdToolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [validateUrl, setValidateUrl] = useState("");
   const [validateResult, setValidateResult] = useState<any>(null);
+  const [extractUrl, setExtractUrl] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [extractResult, setExtractResult] = useState<PdpResult | null>(null);
+  const [pdpHistory, setPdpHistory] = useState<PdpHistory[]>([]);
+  const [showJsonld, setShowJsonld] = useState(false);
 
   const callApi = useCallback(async (params: Record<string, string>) => {
     const url = API + "?" + new URLSearchParams(params).toString();
@@ -82,6 +101,41 @@ export default function JsonLdToolsPage() {
     setLoading(false);
   };
 
+  const WEBHOOK = "https://bawee.app.n8n.cloud/webhook/pdp-jsonld-extract";
+  const SUPA = "https://nntuztaehnywdbttrajy.supabase.co/rest/v1";
+  const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+  const doExtract = async () => {
+    if (!extractUrl.trim()) return;
+    setExtracting(true); setExtractResult(null); setShowJsonld(false);
+    try {
+      const res = await fetch(WEBHOOK, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: extractUrl.trim() }),
+      });
+      const d: PdpResult = await res.json();
+      setExtractResult(d);
+      if (d.success) loadHistory();
+    } catch (e: any) {
+      setExtractResult({ success: false, error: e.message });
+    }
+    setExtracting(false);
+  };
+
+  const loadHistory = async () => {
+    try {
+      const res = await fetch(
+        SUPA + "/bmp_jsonld_extractions?select=id,url,site_domain,extraction_method,completeness_score,created_at,final_jsonld&order=created_at.desc&limit=20",
+        { headers: { apikey: ANON, Authorization: "Bearer " + ANON } }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) setPdpHistory(data);
+    } catch {}
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === "extract") loadHistory(); }, [tab]);
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Nav */}
@@ -98,7 +152,7 @@ export default function JsonLdToolsPage() {
       <div className="max-w-5xl mx-auto px-4 py-6">
         {/* Tabs */}
         <div className="flex gap-1 border-b-2 border-slate-200 mb-6">
-          {([["sites", "🌐 사이트 목록"], ["validate", "🔍 검증 도구"], ["guide", "📋 설치 가이드"]] as [Tab, string][]).map(([key, label]) => (
+          {([["sites", "🌐 사이트 목록"], ["validate", "🔍 검증 도구"], ["extract", "🔬 PDP 추출"], ["guide", "📋 설치 가이드"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => { setTab(key); setCurrentSite(null); setSnippet(null); setValidateResult(null); }}
               className={`px-4 py-2 text-sm font-medium rounded-t transition ${tab === key ? "text-red-600 border-b-2 border-red-600 -mb-[2px]" : "text-slate-500 hover:bg-slate-100"}`}>
               {label}
@@ -200,6 +254,150 @@ export default function JsonLdToolsPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ═══ Extract Tab ═══ */}
+        {tab === "extract" && (
+          <div className="space-y-4">
+            {/* 입력 + 추출 버튼 */}
+            <div className="bg-white rounded-lg border border-slate-200 p-5">
+              <h3 className="font-semibold mb-1">🔬 상품 PDP JSON-LD 자동 추출</h3>
+              <p className="text-sm text-slate-500 mb-4">상품 URL을 입력하면 구조화된 JSON-LD 데이터를 자동으로 추출합니다.</p>
+              <div className="flex gap-2">
+                <input
+                  type="url" value={extractUrl} onChange={(e) => setExtractUrl(e.target.value)}
+                  placeholder="https://www.coupang.com/vp/products/... 또는 https://www.allbirds.com/products/..."
+                  className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                  onKeyDown={(e) => { if (e.key === "Enter") doExtract(); }}
+                  disabled={extracting}
+                />
+                <button onClick={doExtract} disabled={extracting || !extractUrl.trim()}
+                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                  {extracting ? "추출 중..." : "추출"}
+                </button>
+              </div>
+              {extracting && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+                  <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                  {extractUrl.includes("coupang.com") ? "쿠팡 스크래퍼 실행 중... (약 35초)" : "HTML 수집 + 파싱 중... (약 5~10초)"}
+                </div>
+              )}
+              <div className="mt-3 flex gap-2 text-xs text-slate-400">
+                <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full">쿠팡 ✓</span>
+                <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full">Shopify ✓</span>
+                <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full">일반 사이트 ✓</span>
+                <span className="px-2 py-0.5 bg-slate-100 text-slate-400 rounded-full">네이버 준비 중</span>
+              </div>
+            </div>
+
+            {/* 결과 카드 */}
+            {extractResult && (
+              <div className={`rounded-lg border p-5 ${extractResult.success ? "bg-white border-green-200" : "bg-red-50 border-red-200"}`}>
+                {extractResult.success && extractResult.final_jsonld ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-green-800">✅ 추출 완료</h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">{extractResult.extraction_method}</span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all"
+                              style={{
+                                width: (extractResult.completeness_score || 0) + "%",
+                                background: (extractResult.completeness_score || 0) >= 80 ? "#10b981" : (extractResult.completeness_score || 0) >= 60 ? "#f59e0b" : "#ef4444"
+                              }} />
+                          </div>
+                          <span className="text-sm font-bold" style={{
+                            color: (extractResult.completeness_score || 0) >= 80 ? "#10b981" : (extractResult.completeness_score || 0) >= 60 ? "#f59e0b" : "#ef4444"
+                          }}>{extractResult.completeness_score}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid md:grid-cols-[120px_1fr] gap-4">
+                      {/* 이미지 */}
+                      {(extractResult.final_jsonld.image as string) && (
+                        <div className="w-[120px] h-[120px] rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+                          <img
+                            src={Array.isArray(extractResult.final_jsonld.image) ? (extractResult.final_jsonld.image as string[])[0] : extractResult.final_jsonld.image as string}
+                            alt="" className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        </div>
+                      )}
+                      {/* 상품 정보 */}
+                      <div className="space-y-1.5 text-sm">
+                        <div><span className="text-slate-400 w-16 inline-block">상품명</span> <span className="font-medium text-slate-900">{String(extractResult.final_jsonld.name || "-")}</span></div>
+                        {(extractResult.final_jsonld.brand as Record<string, string>)?.name && (
+                          <div><span className="text-slate-400 w-16 inline-block">브랜드</span> <span className="text-slate-700">{(extractResult.final_jsonld.brand as Record<string, string>).name}</span></div>
+                        )}
+                        {!!(extractResult.final_jsonld.offers as Record<string, unknown>)?.price && (
+                          <div><span className="text-slate-400 w-16 inline-block">가격</span> <span className="font-semibold text-red-600">
+                            {String((extractResult.final_jsonld.offers as Record<string, string>).priceCurrency) === "KRW" ? "₩" : "$"}
+                            {Number((extractResult.final_jsonld.offers as Record<string, unknown>).price).toLocaleString()}
+                          </span></div>
+                        )}
+                        {!!(extractResult.final_jsonld.aggregateRating as Record<string, unknown>)?.ratingValue && (
+                          <div><span className="text-slate-400 w-16 inline-block">평점</span> <span className="text-slate-700">
+                            {"⭐ " + String((extractResult.final_jsonld.aggregateRating as Record<string, unknown>).ratingValue)}
+                            {!!(extractResult.final_jsonld.aggregateRating as Record<string, unknown>).reviewCount && (
+                              <span className="text-slate-400 ml-1">({String((extractResult.final_jsonld.aggregateRating as Record<string, unknown>).reviewCount)}개)</span>
+                            )}
+                          </span></div>
+                        )}
+                      </div>
+                    </div>
+                    {/* JSON-LD 토글 */}
+                    <div className="mt-4 border-t border-slate-100 pt-3">
+                      <button onClick={() => setShowJsonld(!showJsonld)} className="text-xs text-slate-500 hover:text-slate-700 font-medium">
+                        {showJsonld ? "▼ JSON-LD 접기" : "▶ JSON-LD 보기"}
+                      </button>
+                      {showJsonld && (
+                        <pre className="mt-2 bg-slate-800 text-slate-200 p-4 rounded-lg text-xs overflow-x-auto max-h-64">
+                          {JSON.stringify(extractResult.final_jsonld, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="font-semibold text-red-800 mb-1">❌ 추출 실패</h3>
+                    <p className="text-sm text-red-600">{extractResult.error || "알 수 없는 오류"}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 히스토리 */}
+            <div className="bg-white rounded-lg border border-slate-200 p-5">
+              <h3 className="font-semibold mb-3">📋 추출 히스토리</h3>
+              {pdpHistory.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">아직 추출 기록이 없습니다</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b">
+                    <th className="text-left py-2 text-xs text-slate-500 uppercase">URL</th>
+                    <th className="text-left py-2 text-xs text-slate-500 uppercase">도메인</th>
+                    <th className="text-left py-2 text-xs text-slate-500 uppercase">방법</th>
+                    <th className="text-left py-2 text-xs text-slate-500 uppercase">완성도</th>
+                    <th className="text-left py-2 text-xs text-slate-500 uppercase">일시</th>
+                  </tr></thead>
+                  <tbody>{pdpHistory.map(h => (
+                    <tr key={h.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                      onClick={() => { setExtractUrl(h.url); if (h.final_jsonld) setExtractResult({ success: true, completeness_score: h.completeness_score, extraction_method: h.extraction_method, final_jsonld: h.final_jsonld }); }}>
+                      <td className="py-2.5 text-xs max-w-[200px] truncate">{h.url.replace(/^https?:\/\//, "").substring(0, 50)}</td>
+                      <td className="py-2.5 text-xs">{h.site_domain}</td>
+                      <td className="py-2.5"><Badge variant={h.extraction_method === "brightdata_scraper" ? "blue" : "green"}>{h.extraction_method}</Badge></td>
+                      <td className="py-2.5">
+                        <span className={`font-semibold ${h.completeness_score >= 80 ? "text-green-600" : h.completeness_score >= 60 ? "text-yellow-600" : "text-red-600"}`}>
+                          {h.completeness_score}%
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-xs text-slate-400">{new Date(h.created_at).toLocaleDateString("ko-KR")}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              )}
+            </div>
           </div>
         )}
 
