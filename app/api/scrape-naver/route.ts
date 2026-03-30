@@ -51,10 +51,7 @@ export async function POST(request: NextRequest) {
 
       const page = await browser.newPage();
       
-      // 네이버 접근을 위한 헤더 설정
-      await page.setExtraHTTPHeaders({
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-      });
+      // BrightData Browser API는 헤더 오버라이드 금지 — 기본 설정 사용
 
       // 페이지 로드 (domcontentloaded: SPA 초기 로드 후 JS가 데이터를 주입)
       await page.goto(url, { 
