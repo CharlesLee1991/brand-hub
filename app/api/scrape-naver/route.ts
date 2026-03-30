@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Vercel Serverless Function: BrightData Browser API(WSS)로 네이버 SPA 렌더링
 // puppeteer-core만 사용 (원격 브라우저 연결, Chromium 바이너리 불필요)
 
-export const maxDuration = 60; // Vercel Pro: 60s, Hobby: 10s
+export const maxDuration = 120; // Vercel Pro: max 300s, 네이버 렌더링에 120s 확보
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
@@ -56,11 +56,14 @@ export async function POST(request: NextRequest) {
         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
       });
 
-      // 페이지 로드 (networkidle2: 2개 이하 네트워크 연결 시 완료 판단)
+      // 페이지 로드 (domcontentloaded: SPA 초기 로드 후 JS가 데이터를 주입)
       await page.goto(url, { 
-        waitUntil: 'networkidle2', 
-        timeout: 45000 
+        waitUntil: 'domcontentloaded', 
+        timeout: 30000 
       });
+
+      // SPA 데이터 로드 대기 (5초 고정 + 셀렉터 대기)
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
       // SPA 렌더링 대기 — 상품명 셀렉터 출현 확인
       try {
