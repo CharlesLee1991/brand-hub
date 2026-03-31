@@ -101,7 +101,7 @@ export default function JsonLdToolsPage() {
     setLoading(false);
   };
 
-  const WEBHOOK = "https://bawee.app.n8n.cloud/webhook/pdp-jsonld-extract";
+  const WEBHOOK = "/api/pdp-extract";
   const SUPA = "https://nntuztaehnywdbttrajy.supabase.co/rest/v1";
   const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
