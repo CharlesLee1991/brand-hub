@@ -9,6 +9,14 @@ export const dynamic = 'force-dynamic';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nntuztaehnywdbttrajy.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const GEOBH_EF = `${SUPABASE_URL}/functions/v1/geobh-jsonld`;
+// Edge CDN 캐시: 1시간 캐시 + 24시간 stale-while-revalidate
+const CACHE_HEADERS = {
+  'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400',
+};
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store',
+};
+
 
 async function supabaseQuery(path: string): Promise<unknown[]> {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -27,7 +35,7 @@ export async function GET(request: NextRequest) {
   if (!url) {
     return NextResponse.json(
       { success: false, error: 'url parameter is required' },
-      { status: 400 }
+      { status: 400, headers: NO_CACHE_HEADERS }
     );
   }
 
@@ -52,7 +60,7 @@ export async function GET(request: NextRequest) {
         page_type: delivery[0].page_type,
         data: delivery[0].jsonld_array,
         cached_at: delivery[0].updated_at,
-      });
+      }, { headers: CACHE_HEADERS });
     }
 
     // Step 2: PDP 추출 결과 확인
@@ -98,7 +106,7 @@ export async function GET(request: NextRequest) {
         completeness_score: extractions[0].completeness_score,
         data: jsonldArray,
         extracted_at: extractions[0].created_at,
-      });
+      }, { headers: CACHE_HEADERS });
     }
 
     // Step 3: 기존 geobh-jsonld EF fallback (GPT 생성)
@@ -137,7 +145,7 @@ export async function GET(request: NextRequest) {
             source: 'geobh_generated',
             data: jsonldArray,
             page_type: efData.page_type,
-          });
+          }, { headers: CACHE_HEADERS });
         }
       }
     } catch {
@@ -150,13 +158,13 @@ export async function GET(request: NextRequest) {
       source: 'none',
       message: 'No JSON-LD data found for this URL. Use PDP extraction first.',
       url,
-    });
+    }, { headers: NO_CACHE_HEADERS });
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       { success: false, error: 'Server error', detail: msg },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }
