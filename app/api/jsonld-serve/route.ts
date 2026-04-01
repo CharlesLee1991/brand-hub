@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // 고객 사이트에서 호출: GET /api/jsonld-serve?url={페이지URL}
 // 우선순위: delivery 캐시 → PDP 추출 → 기존 geobh-jsonld EF(GPT 생성)
 
-export const dynamic = 'force-dynamic';
+
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nntuztaehnywdbttrajy.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
