@@ -4,203 +4,54 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   Loader2, Shield, Plus, Play, RefreshCw, ExternalLink,
-  ToggleLeft, ToggleRight, Trash2, AlertCircle, CheckCircle2,
-  Database, Globe, Link2, Package, ArrowLeft,
+  ToggleLeft, ToggleRight, ArrowLeft, CheckCircle2, AlertCircle,
+  LayoutDashboard, Users, Building2, KeyRound, Globe, Package, BarChart3,
 } from "lucide-react";
 
-interface SiteRow {
-  id: string; site_domain: string; is_pdp_enabled: boolean;
-  pdp_source: string; schedule_interval: string; max_products: number;
-  last_batch_at: string | null; last_batch_count: number; last_batch_errors: number;
-  bmp_jsonld_urls?: { count: number }[];
-}
-interface UrlRow {
-  id: string; product_url: string; status: string;
-  last_extracted_at: string | null; error_message: string | null;
-  completeness_score?: number;
-}
-interface Stats {
-  total_sites: number; active_sites: number;
-  delivery_cached: number; total_extractions: number;
-}
-
+type Tab = "dashboard" | "partners" | "clients" | "accounts" | "brandhub" | "pdp" | "analytics";
+const SUPA = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nntuztaehnywdbttrajy.supabase.co";
+const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const API = "/api/pdp-admin";
+
+async function sq(path: string) {
+  const r = await fetch(SUPA + "/rest/v1/" + path, { headers: { apikey: ANON, Authorization: "Bearer " + ANON } });
+  return r.ok ? r.json() : [];
+}
 
 export default function AdminPage() {
   const { user, loading: authLoading, isAdmin, signOut, displayName } = useAuth();
-
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [sites, setSites] = useState<SiteRow[]>([]);
-  const [selectedSite, setSelectedSite] = useState<SiteRow | null>(null);
-  const [urls, setUrls] = useState<UrlRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const flash = (type: "ok" | "err", text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 4000); };
 
-  // Add site form
-  const [newDomain, setNewDomain] = useState("");
-  const [newSource, setNewSource] = useState("auto");
-  const [newSchedule, setNewSchedule] = useState("24h");
-  const [showAddSite, setShowAddSite] = useState(false);
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]"><Loader2 className="w-8 h-8 animate-spin text-gray-300" /></div>;
+  if (!user || !isAdmin) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]"><div className="text-center">
+      <Shield className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+      <h2 className="text-xl font-bold text-gray-900 mb-2">접근 권한이 없습니다</h2>
+      <p className="text-sm text-gray-500 mb-4">슈퍼어드민만 접근할 수 있습니다.</p>
+      <a href="/" className="text-sm text-blue-600 hover:underline">← 메인으로</a>
+    </div></div>
+  );
 
-  // Add URLs form
-  const [newUrls, setNewUrls] = useState("");
-  const [showAddUrls, setShowAddUrls] = useState(false);
-
-  const flash = (type: "ok" | "err", text: string) => {
-    setMsg({ type, text });
-    setTimeout(() => setMsg(null), 4000);
-  };
-
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(API + "?action=dashboard");
-      const d = await res.json();
-      if (d.success) {
-        setStats(d.stats);
-      }
-      const res2 = await fetch(API + "?action=sites");
-      const d2 = await res2.json();
-      if (d2.success) setSites(d2.sites || []);
-    } catch { flash("err", "데이터 로딩 실패"); }
-    setLoading(false);
-  }, []);
-
-  const loadUrls = async (site: SiteRow) => {
-    setSelectedSite(site);
-    setLoading(true);
-    try {
-      const res = await fetch(API + "?action=urls&site_id=" + site.id);
-      const d = await res.json();
-      if (d.success) setUrls(d.urls || []);
-    } catch { flash("err", "URL 로딩 실패"); }
-    setLoading(false);
-  };
-
-  useEffect(() => { if (isAdmin) loadDashboard(); }, [isAdmin, loadDashboard]);
-
-  // Auth guard
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
-      </div>
-    );
-  }
-
-  if (!user || !isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]">
-        <div className="text-center">
-          <Shield className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">접근 권한이 없습니다</h2>
-          <p className="text-sm text-gray-500 mb-4">슈퍼어드민만 접근할 수 있습니다.</p>
-          <a href="/" className="text-sm text-blue-600 hover:underline">← 메인으로 돌아가기</a>
-        </div>
-      </div>
-    );
-  }
-
-  const addSite = async () => {
-    if (!newDomain.trim()) return;
-    try {
-      const res = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add_site",
-          site_domain: newDomain.trim().replace(/^https?:\/\//, "").replace(/\/$/, ""),
-          pdp_source: newSource,
-          schedule_interval: newSchedule,
-        }),
-      });
-      const d = await res.json();
-      if (d.success) {
-        flash("ok", "사이트 추가 완료");
-        setNewDomain(""); setShowAddSite(false);
-        loadDashboard();
-      } else flash("err", "추가 실패: " + JSON.stringify(d));
-    } catch { flash("err", "네트워크 오류"); }
-  };
-
-  const toggleSite = async (site: SiteRow) => {
-    try {
-      const res = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "toggle_site",
-          site_id: site.id,
-          is_pdp_enabled: !site.is_pdp_enabled,
-        }),
-      });
-      const d = await res.json();
-      if (d.success) {
-        flash("ok", site.site_domain + (site.is_pdp_enabled ? " 비활성화" : " 활성화"));
-        loadDashboard();
-      }
-    } catch { flash("err", "토글 실패"); }
-  };
-
-  const addUrls = async () => {
-    if (!selectedSite || !newUrls.trim()) return;
-    const urlList = newUrls.split("\n").map(u => u.trim()).filter(u => u.startsWith("http"));
-    if (urlList.length === 0) { flash("err", "유효한 URL이 없습니다"); return; }
-    try {
-      const res = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_urls", site_id: selectedSite.id, urls: urlList }),
-      });
-      const d = await res.json();
-      if (d.success) {
-        flash("ok", d.added + "건 URL 추가 완료");
-        setNewUrls(""); setShowAddUrls(false);
-        loadUrls(selectedSite);
-      } else flash("err", "추가 실패");
-    } catch { flash("err", "네트워크 오류"); }
-  };
-
-  const triggerBatch = async () => {
-    flash("ok", "배치 추출 실행 중...");
-    try {
-      const res = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "trigger_batch" }),
-      });
-      const d = await res.json();
-      if (d.success) {
-        const r = d.batch_result || {};
-        flash("ok", "배치 완료: " + (r.processed || 0) + "건 처리");
-        loadDashboard();
-        if (selectedSite) loadUrls(selectedSite);
-      } else flash("err", "배치 실패: " + (d.error || ""));
-    } catch { flash("err", "배치 트리거 실패"); }
-  };
-
-  const statusColor = (s: string) => {
-    if (s === "success") return "bg-green-100 text-green-800";
-    if (s === "pending") return "bg-yellow-100 text-yellow-800";
-    if (s === "failed") return "bg-red-100 text-red-800";
-    if (s === "extracting") return "bg-blue-100 text-blue-800";
-    return "bg-gray-100 text-gray-600";
-  };
+  const tabs: { key: Tab; icon: typeof LayoutDashboard; label: string }[] = [
+    { key: "dashboard", icon: LayoutDashboard, label: "대시보드" },
+    { key: "partners", icon: Users, label: "파트너" },
+    { key: "clients", icon: Building2, label: "고객" },
+    { key: "accounts", icon: KeyRound, label: "계정/권한" },
+    { key: "brandhub", icon: Globe, label: "Brand Hub" },
+    { key: "pdp", icon: Package, label: "PDP JSON-LD" },
+    { key: "analytics", icon: BarChart3, label: "분석" },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F8F9FC]">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/85 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a href="/" className="flex items-center gap-2 text-gray-400 hover:text-gray-600 transition">
-              <ArrowLeft className="w-4 h-4" />
-            </a>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-extrabold text-sm text-white bg-gradient-to-br from-blue-600 to-blue-800">A</div>
-            <div>
-              <div className="font-bold text-gray-900 text-sm">PDP Admin</div>
-              <div className="text-[10px] text-gray-400">JSON-LD 커머스 관리</div>
-            </div>
+            <a href="/" className="text-gray-400 hover:text-gray-600 transition"><ArrowLeft className="w-4 h-4" /></a>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-extrabold text-sm text-white bg-gradient-to-br from-blue-600 to-blue-800">B</div>
+            <div><div className="font-bold text-gray-900 text-sm">bmp.ai Admin</div><div className="text-[10px] text-gray-400">Brand Management Platform</div></div>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-medium">Admin</span>
@@ -209,226 +60,318 @@ export default function AdminPage() {
           </div>
         </div>
       </header>
-
-      <div className="max-w-6xl mx-auto px-6 py-6">
-        {/* Flash message */}
-        {msg && (
-          <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 ${msg.type === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
-            {msg.type === "ok" ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            {msg.text}
-          </div>
-        )}
-
-        {/* Stats */}
-        {stats && (
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            {[
-              { icon: Globe, label: "등록 사이트", value: stats.total_sites, sub: stats.active_sites + "개 활성" },
-              { icon: Link2, label: "상품 URL", value: sites.reduce((a, s) => a + (s.bmp_jsonld_urls?.[0]?.count || 0), 0), sub: "전체 등록" },
-              { icon: Database, label: "Delivery 캐시", value: stats.delivery_cached, sub: "서빙 준비" },
-              { icon: Package, label: "추출 완료", value: stats.total_extractions, sub: "누적" },
-            ].map(({ icon: Icon, label, value, sub }) => (
-              <div key={label} className="bg-white rounded-xl border border-gray-100 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-500">{label}</span>
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{value}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{sub}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Action bar */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-gray-900">
-            {selectedSite ? selectedSite.site_domain + " — 상품 URL" : "등록 사이트"}
-          </h2>
-          <div className="flex gap-2">
-            {selectedSite && (
-              <button onClick={() => { setSelectedSite(null); setUrls([]); }}
-                className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
-                ← 사이트 목록
-              </button>
-            )}
-            <button onClick={() => loadDashboard()}
-              className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition flex items-center gap-1.5">
-              <RefreshCw className="w-3.5 h-3.5" /> 새로고침
+      <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="flex gap-1 border-b border-gray-200 mb-5 overflow-x-auto">
+          {tabs.map(({ key, icon: Icon, label }) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={"flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap transition rounded-t " + (tab === key ? "text-blue-600 border-b-2 border-blue-600 -mb-[1px]" : "text-gray-500 hover:text-gray-700 hover:bg-gray-50")}>
+              <Icon className="w-3.5 h-3.5" />{label}
             </button>
-            <button onClick={triggerBatch}
-              className="px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition flex items-center gap-1.5">
-              <Play className="w-3.5 h-3.5" /> 배치 추출
-            </button>
-            {!selectedSite && (
-              <button onClick={() => setShowAddSite(!showAddSite)}
-                className="px-3 py-1.5 text-sm text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> 사이트 추가
-              </button>
-            )}
-            {selectedSite && (
-              <button onClick={() => setShowAddUrls(!showAddUrls)}
-                className="px-3 py-1.5 text-sm text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> URL 추가
-              </button>
-            )}
-          </div>
+          ))}
         </div>
-
-        {/* Add site form */}
-        {showAddSite && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <h3 className="font-semibold text-sm mb-3">사이트 추가</h3>
-            <div className="flex gap-3 items-end">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">도메인</label>
-                <input type="text" value={newDomain} onChange={e => setNewDomain(e.target.value)}
-                  placeholder="example.com" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">추출 소스</label>
-                <select value={newSource} onChange={e => setNewSource(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                  <option value="auto">자동 감지</option>
-                  <option value="web_unlocker">Web Unlocker</option>
-                  <option value="coupang_scraper">쿠팡 스크래퍼</option>
-                  <option value="manual">수동</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">스케줄</label>
-                <select value={newSchedule} onChange={e => setNewSchedule(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                  <option value="manual">수동만</option>
-                  <option value="6h">6시간</option>
-                  <option value="12h">12시간</option>
-                  <option value="24h">24시간</option>
-                  <option value="7d">7일</option>
-                </select>
-              </div>
-              <button onClick={addSite} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">추가</button>
-              <button onClick={() => setShowAddSite(false)} className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200">취소</button>
-            </div>
-          </div>
-        )}
-
-        {/* Add URLs form */}
-        {showAddUrls && selectedSite && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <h3 className="font-semibold text-sm mb-3">상품 URL 추가 — {selectedSite.site_domain}</h3>
-            <textarea value={newUrls} onChange={e => setNewUrls(e.target.value)}
-              placeholder={"https://" + selectedSite.site_domain + "/product/...\nhttps://" + selectedSite.site_domain + "/product/...\n(줄바꿈으로 여러 개)"}
-              rows={4} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-3 font-mono" />
-            <div className="flex gap-2">
-              <button onClick={addUrls} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">추가</button>
-              <button onClick={() => setShowAddUrls(false)} className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200">취소</button>
-            </div>
-          </div>
-        )}
-
-        {/* Sites list */}
-        {!selectedSite && (
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            {loading ? (
-              <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div>
-            ) : sites.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-sm">등록된 사이트가 없습니다</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">도메인</th>
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">소스</th>
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">스케줄</th>
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">URL 수</th>
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">마지막 배치</th>
-                    <th className="text-center py-2.5 px-4 text-xs text-gray-500 font-medium">상태</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sites.map(s => (
-                    <tr key={s.id} className="border-b border-gray-50 hover:bg-blue-50/30 transition cursor-pointer"
-                      onClick={() => loadUrls(s)}>
-                      <td className="py-3 px-4 font-medium text-gray-900">{s.site_domain}</td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{s.pdp_source}</span>
-                      </td>
-                      <td className="py-3 px-4 text-gray-500">{s.schedule_interval}</td>
-                      <td className="py-3 px-4 text-gray-700">{s.bmp_jsonld_urls?.[0]?.count || 0}건</td>
-                      <td className="py-3 px-4 text-xs text-gray-400">
-                        {s.last_batch_at ? new Date(s.last_batch_at).toLocaleString("ko-KR") : "—"}
-                      </td>
-                      <td className="py-3 px-4 text-center" onClick={e => { e.stopPropagation(); toggleSite(s); }}>
-                        {s.is_pdp_enabled
-                          ? <ToggleRight className="w-6 h-6 text-blue-600 mx-auto cursor-pointer hover:scale-110 transition" />
-                          : <ToggleLeft className="w-6 h-6 text-gray-300 mx-auto cursor-pointer hover:scale-110 transition" />
-                        }
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* URL list */}
-        {selectedSite && (
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            {loading ? (
-              <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div>
-            ) : urls.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-sm">등록된 URL이 없습니다</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">상품 URL</th>
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">상태</th>
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">추출 일시</th>
-                    <th className="text-left py-2.5 px-4 text-xs text-gray-500 font-medium">에러</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {urls.map(u => (
-                    <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                      <td className="py-3 px-4">
-                        <a href={u.product_url} target="_blank" rel="noopener"
-                          className="text-blue-600 hover:underline flex items-center gap-1 max-w-md truncate">
-                          {u.product_url.replace(/^https?:\/\//, "").substring(0, 60)}
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        </a>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(u.status)}`}>
-                          {u.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-gray-400">
-                        {u.last_extracted_at ? new Date(u.last_extracted_at).toLocaleString("ko-KR") : "—"}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-red-400 max-w-xs truncate">
-                        {u.error_message || "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* Footer info */}
-        <div className="mt-6 text-xs text-gray-400 flex items-center gap-4">
-          <a href="/jsonld-tools" className="hover:text-gray-600 flex items-center gap-1">
-            <ExternalLink className="w-3 h-3" /> JSON-LD 도구
-          </a>
-          <span>•</span>
-          <span>API: /api/pdp-admin, /api/jsonld-serve</span>
-          <span>•</span>
-          <span>WF: PDP-001 + PDP-SCHED</span>
-        </div>
+        {msg && <div className={"mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 " + (msg.type === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800")}>
+          {msg.type === "ok" ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}{msg.text}
+        </div>}
+        {tab === "dashboard" && <DashboardTab />}
+        {tab === "partners" && <PartnersTab />}
+        {tab === "clients" && <ClientsTab />}
+        {tab === "accounts" && <AccountsTab />}
+        {tab === "brandhub" && <BrandHubTab />}
+        {tab === "pdp" && <PdpTab flash={flash} />}
+        {tab === "analytics" && <AnalyticsTab />}
       </div>
     </div>
   );
+}
+
+/* ═══ Dashboard ═══ */
+function DashboardTab() {
+  const [d, setD] = useState<Record<string, number>>({});
+  useEffect(() => {
+    Promise.all([
+      sq("gp_geobh_hub_config?select=hub_slug").then(r => ({ partners: r.length })),
+      sq("bmp_partner_clients?select=id").then(r => ({ clients: r.length })),
+      sq("bmp_user_roles?select=id").then(r => ({ accounts: r.length })),
+      sq("bmp_brandhub_sites?select=site_id").then(r => ({ hubs: r.length })),
+      sq("bmp_jsonld_sites?select=id").then(r => ({ pdp_sites: r.length })),
+      sq("bmp_jsonld_delivery?select=id&is_active=is.true").then(r => ({ delivery: r.length })),
+      sq("bmp_eeat_scores?select=id").then(r => ({ eeat: r.length })),
+      sq("bmp_jsonld_extractions?select=id").then(r => ({ extractions: r.length })),
+    ]).then(results => { const m: Record<string, number> = {}; results.forEach(r => Object.assign(m, r)); setD(m); });
+  }, []);
+  const cards = [
+    { label: "파트너", value: d.partners, color: "text-blue-600" },
+    { label: "고객사", value: d.clients, color: "text-emerald-600" },
+    { label: "사용자", value: d.accounts, color: "text-purple-600" },
+    { label: "Brand Hub", value: d.hubs, color: "text-amber-600" },
+    { label: "PDP 사이트", value: d.pdp_sites, color: "text-red-600" },
+    { label: "JSON-LD 서빙", value: d.delivery, color: "text-teal-600" },
+    { label: "EEAT 분석", value: d.eeat, color: "text-pink-600" },
+    { label: "PDP 추출", value: d.extractions, color: "text-orange-600" },
+  ];
+  return (<div><h2 className="font-bold text-gray-900 mb-4">전체 현황</h2>
+    <div className="grid grid-cols-4 gap-4">{cards.map(c => (
+      <div key={c.label} className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="text-xs text-gray-500 mb-1">{c.label}</div>
+        <div className={"text-3xl font-bold " + c.color}>{c.value ?? "—"}</div>
+      </div>
+    ))}</div>
+  </div>);
+}
+
+/* ═══ Partners ═══ */
+function PartnersTab() {
+  const [rows, setRows] = useState<Array<Record<string, string>>>([]);
+  const [ld, setLd] = useState(true);
+  useEffect(() => { sq("gp_geobh_hub_config?select=hub_slug,brand_name,brand_description,primary_color&order=hub_slug").then(d => { setRows(d); setLd(false); }); }, []);
+  return (<div>
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="font-bold text-gray-900">파트너 관리 ({rows.length})</h2>
+      <button className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 opacity-50 cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> 파트너 추가 (준비 중)</button>
+    </div>
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      {ld ? <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div> : (
+        <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50">
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">Slug</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">이름</th>
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">설명</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">색상</th>
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">링크</th>
+        </tr></thead><tbody>{rows.map(r => (
+          <tr key={r.hub_slug} className="border-b border-gray-50 hover:bg-blue-50/30">
+            <td className="py-3 px-4 font-mono text-xs">{r.hub_slug}</td>
+            <td className="py-3 px-4 font-medium text-gray-900">{r.brand_name}</td>
+            <td className="py-3 px-4 text-gray-500 text-xs max-w-xs truncate">{(r.brand_description || "").substring(0, 50)}</td>
+            <td className="py-3 px-4"><span className="w-5 h-5 rounded inline-block" style={{ backgroundColor: r.primary_color || "#ccc" }} /></td>
+            <td className="py-3 px-4"><a href={"https://" + r.hub_slug + ".bmp.ai"} target="_blank" rel="noopener" className="text-blue-600 hover:underline text-xs flex items-center gap-1">{r.hub_slug}.bmp.ai <ExternalLink className="w-3 h-3" /></a></td>
+          </tr>
+        ))}</tbody></table>
+      )}
+    </div>
+  </div>);
+}
+
+/* ═══ Clients ═══ */
+function ClientsTab() {
+  const [rows, setRows] = useState<Array<Record<string, string>>>([]);
+  const [ld, setLd] = useState(true);
+  useEffect(() => { sq("bmp_partner_clients?select=partner_slug,client_slug,client_name,client_url,client_industry,status&order=partner_slug,client_slug").then(d => { setRows(d); setLd(false); }); }, []);
+  return (<div>
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="font-bold text-gray-900">고객 관리 ({rows.length}개)</h2>
+      <button className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 opacity-50 cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> 고객 배정 (준비 중)</button>
+    </div>
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      {ld ? <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div> : (
+        <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50">
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">파트너</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">고객사</th>
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">URL</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">업종</th>
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">상태</th>
+        </tr></thead><tbody>{rows.map(r => (
+          <tr key={r.partner_slug + r.client_slug} className="border-b border-gray-50 hover:bg-blue-50/30">
+            <td className="py-3 px-4"><span className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">{r.partner_slug}</span></td>
+            <td className="py-3 px-4 font-medium text-gray-900">{r.client_name}</td>
+            <td className="py-3 px-4 text-xs text-gray-400 max-w-[200px] truncate">{r.client_url || "—"}</td>
+            <td className="py-3 px-4 text-xs text-gray-500">{r.client_industry || "—"}</td>
+            <td className="py-3 px-4"><span className={"px-2 py-0.5 rounded-full text-xs " + (r.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600")}>{r.status}</span></td>
+          </tr>
+        ))}</tbody></table>
+      )}
+    </div>
+  </div>);
+}
+
+/* ═══ Accounts ═══ */
+function AccountsTab() {
+  const [rows, setRows] = useState<Array<Record<string, string | boolean>>>([]);
+  const [ld, setLd] = useState(true);
+  useEffect(() => { sq("bmp_user_roles?select=email,display_name,role,partner_slug,is_active&order=role,partner_slug,email").then(d => { setRows(d); setLd(false); }); }, []);
+  return (<div>
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="font-bold text-gray-900">계정/권한 ({rows.length})</h2>
+      <button className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 opacity-50 cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> 계정 추가 (준비 중)</button>
+    </div>
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      {ld ? <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div> : (
+        <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50">
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">이메일</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">이름</th>
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">역할</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">파트너</th>
+          <th className="text-center py-2.5 px-4 text-xs text-gray-500">활성</th>
+        </tr></thead><tbody>{rows.map(r => (
+          <tr key={String(r.email)} className="border-b border-gray-50 hover:bg-blue-50/30">
+            <td className="py-3 px-4 font-mono text-xs">{String(r.email)}</td>
+            <td className="py-3 px-4 text-gray-900">{String(r.display_name || "—")}</td>
+            <td className="py-3 px-4"><span className={"px-2 py-0.5 rounded-full text-xs font-medium " + (r.role === "admin" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-700")}>{String(r.role)}</span></td>
+            <td className="py-3 px-4 text-xs text-gray-500">{String(r.partner_slug || "— (내부)")}</td>
+            <td className="py-3 px-4 text-center">{r.is_active ? <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> : <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />}</td>
+          </tr>
+        ))}</tbody></table>
+      )}
+    </div>
+  </div>);
+}
+
+/* ═══ Brand Hub ═══ */
+function BrandHubTab() {
+  const [hubs, setHubs] = useState<Array<Record<string, string>>>([]);
+  const [slugs, setSlugs] = useState<Array<Record<string, string>>>([]);
+  const [ld, setLd] = useState(true);
+  useEffect(() => {
+    Promise.all([
+      sq("gp_geobh_hub_config?select=hub_slug,brand_name,primary_color&order=hub_slug"),
+      sq("bmp_domain_reserved_slugs?select=slug,category,reason&order=category,slug&limit=30"),
+    ]).then(([h, s]) => { setHubs(h); setSlugs(s); setLd(false); });
+  }, []);
+  return (<div>
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="font-bold text-gray-900">Brand Hub 관리</h2>
+      <button className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 opacity-50 cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> Hub 생성 (준비 중)</button>
+    </div>
+    <div className="grid grid-cols-2 gap-4">
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <h3 className="font-semibold text-sm mb-3">활성 Hub ({hubs.length})</h3>
+        {ld ? <Loader2 className="w-5 h-5 animate-spin text-gray-300" /> : (
+          <div className="space-y-2 max-h-96 overflow-y-auto">{hubs.map(h => (
+            <div key={h.hub_slug} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+              <span className="w-4 h-4 rounded" style={{ backgroundColor: h.primary_color || "#ccc" }} />
+              <div className="flex-1 min-w-0"><div className="text-sm font-medium text-gray-900 truncate">{h.brand_name}</div><div className="text-xs text-gray-400">{h.hub_slug}.bmp.ai</div></div>
+              <a href={"https://" + h.hub_slug + ".bmp.ai"} target="_blank" rel="noopener" className="text-gray-400 hover:text-blue-600"><ExternalLink className="w-3.5 h-3.5" /></a>
+            </div>
+          ))}</div>
+        )}
+      </div>
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <h3 className="font-semibold text-sm mb-3">예약 슬러그 (상위 30건 / 총 106)</h3>
+        {ld ? <Loader2 className="w-5 h-5 animate-spin text-gray-300" /> : (
+          <div className="space-y-1 max-h-96 overflow-y-auto">{slugs.map(s => (
+            <div key={s.slug} className="flex items-center gap-2 text-xs py-0.5">
+              <span className={"px-1.5 py-0.5 rounded text-[10px] font-medium " + (s.category === "system" ? "bg-red-50 text-red-600" : s.category === "partner" ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-600")}>{s.category}</span>
+              <span className="font-mono text-gray-700">{s.slug}</span>
+              <span className="text-gray-400 truncate">{s.reason}</span>
+            </div>
+          ))}</div>
+        )}
+      </div>
+    </div>
+  </div>);
+}
+
+/* ═══ PDP JSON-LD ═══ */
+interface SiteRow { id: string; site_domain: string; is_pdp_enabled: boolean; pdp_source: string; schedule_interval: string; bmp_jsonld_urls?: { count: number }[]; }
+interface UrlRow { id: string; product_url: string; status: string; last_extracted_at: string | null; error_message: string | null; }
+
+function PdpTab({ flash }: { flash: (t: "ok"|"err", m: string) => void }) {
+  const [stats, setStats] = useState<Record<string, number>>({});
+  const [sites, setSites] = useState<SiteRow[]>([]);
+  const [sel, setSel] = useState<SiteRow | null>(null);
+  const [urls, setUrls] = useState<UrlRow[]>([]);
+  const [ld, setLd] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showUrls, setShowUrls] = useState(false);
+  const [nd, setNd] = useState(""); const [ns, setNs] = useState("auto"); const [nsc, setNsc] = useState("24h");
+  const [nu, setNu] = useState("");
+
+  const load = useCallback(async () => {
+    setLd(true);
+    const [d1, d2] = await Promise.all([fetch(API+"?action=dashboard").then(r=>r.json()), fetch(API+"?action=sites").then(r=>r.json())]);
+    if (d1.success) setStats(d1.stats); if (d2.success) setSites(d2.sites||[]);
+    setLd(false);
+  }, []);
+  const loadU = async (s: SiteRow) => { setSel(s); setLd(true); const d = await fetch(API+"?action=urls&site_id="+s.id).then(r=>r.json()); if(d.success) setUrls(d.urls||[]); setLd(false); };
+  useEffect(() => { load(); }, [load]);
+
+  const addSite = async () => { if(!nd.trim()) return; const d = await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"add_site",site_domain:nd.trim().replace(/^https?:\/\//,"").replace(/\/$/,""),pdp_source:ns,schedule_interval:nsc})}).then(r=>r.json()); if(d.success){flash("ok","추가 완료");setNd("");setShowAdd(false);load();}else flash("err","실패"); };
+  const toggle = async (s: SiteRow) => { const d = await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"toggle_site",site_id:s.id,is_pdp_enabled:!s.is_pdp_enabled})}).then(r=>r.json()); if(d.success){flash("ok",s.site_domain+(s.is_pdp_enabled?" OFF":" ON"));load();} };
+  const addU = async () => { if(!sel||!nu.trim()) return; const list=nu.split("\n").map(u=>u.trim()).filter(u=>u.startsWith("http")); if(!list.length){flash("err","URL 없음");return;} const d=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"add_urls",site_id:sel.id,urls:list})}).then(r=>r.json()); if(d.success){flash("ok",d.added+"건 추가");setNu("");setShowUrls(false);loadU(sel);} };
+  const batch = async () => { flash("ok","배치 실행 중..."); const d=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"trigger_batch"})}).then(r=>r.json()); if(d.success){flash("ok","완료: "+(d.batch_result?.processed||0)+"건");load();if(sel)loadU(sel);}else flash("err","실패"); };
+  const sc = (s: string) => s==="success"?"bg-green-100 text-green-800":s==="pending"?"bg-yellow-100 text-yellow-800":s==="failed"?"bg-red-100 text-red-800":"bg-gray-100 text-gray-600";
+
+  return (<div>
+    <div className="grid grid-cols-4 gap-3 mb-4">{[["사이트",stats.total_sites],["활성",stats.active_sites],["Delivery",stats.delivery_cached],["추출",stats.total_extractions]].map(([l,v])=>(
+      <div key={String(l)} className="bg-white rounded-xl border border-gray-100 p-3"><div className="text-xs text-gray-500">{String(l)}</div><div className="text-2xl font-bold text-gray-900">{v??"—"}</div></div>
+    ))}</div>
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="font-bold text-gray-900 text-sm">{sel?sel.site_domain+" — URL":"PDP 사이트"}</h2>
+      <div className="flex gap-2">
+        {sel&&<button onClick={()=>{setSel(null);setUrls([]);}} className="px-3 py-1.5 text-xs bg-gray-100 rounded-lg">← 목록</button>}
+        <button onClick={load} className="px-3 py-1.5 text-xs bg-gray-100 rounded-lg flex items-center gap-1"><RefreshCw className="w-3 h-3"/>새로고침</button>
+        <button onClick={batch} className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded-lg flex items-center gap-1"><Play className="w-3 h-3"/>배치</button>
+        {!sel&&<button onClick={()=>setShowAdd(!showAdd)} className="px-3 py-1.5 text-xs text-white bg-gray-900 rounded-lg flex items-center gap-1"><Plus className="w-3 h-3"/>사이트</button>}
+        {sel&&<button onClick={()=>setShowUrls(!showUrls)} className="px-3 py-1.5 text-xs text-white bg-gray-900 rounded-lg flex items-center gap-1"><Plus className="w-3 h-3"/>URL</button>}
+      </div>
+    </div>
+    {showAdd&&<div className="bg-white rounded-xl border p-4 mb-3"><div className="flex gap-2 items-end">
+      <div className="flex-1"><label className="block text-xs text-gray-500 mb-1">도메인</label><input value={nd} onChange={e=>setNd(e.target.value)} placeholder="example.com" className="w-full px-3 py-1.5 border rounded-lg text-sm"/></div>
+      <div><label className="block text-xs text-gray-500 mb-1">소스</label><select value={ns} onChange={e=>setNs(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm"><option value="auto">자동</option><option value="coupang_scraper">쿠팡</option><option value="web_unlocker">WU</option><option value="manual">수동</option></select></div>
+      <div><label className="block text-xs text-gray-500 mb-1">스케줄</label><select value={nsc} onChange={e=>setNsc(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm"><option value="manual">수동</option><option value="6h">6h</option><option value="12h">12h</option><option value="24h">24h</option></select></div>
+      <button onClick={addSite} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg">추가</button>
+      <button onClick={()=>setShowAdd(false)} className="px-3 py-1.5 bg-gray-100 text-sm rounded-lg">취소</button>
+    </div></div>}
+    {showUrls&&sel&&<div className="bg-white rounded-xl border p-4 mb-3">
+      <textarea value={nu} onChange={e=>setNu(e.target.value)} placeholder="https://... (줄바꿈)" rows={3} className="w-full px-3 py-2 border rounded-lg text-sm font-mono mb-2"/>
+      <div className="flex gap-2"><button onClick={addU} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg">추가</button><button onClick={()=>setShowUrls(false)} className="px-3 py-1.5 bg-gray-100 text-sm rounded-lg">취소</button></div>
+    </div>}
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      {ld?<div className="text-center py-10"><Loader2 className="w-5 h-5 animate-spin text-gray-300 mx-auto"/></div>:
+       !sel?(
+        <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50"><th className="text-left py-2 px-4 text-xs text-gray-500">도메인</th><th className="text-left py-2 px-4 text-xs text-gray-500">소스</th><th className="text-left py-2 px-4 text-xs text-gray-500">스케줄</th><th className="text-left py-2 px-4 text-xs text-gray-500">URL</th><th className="text-center py-2 px-4 text-xs text-gray-500">상태</th></tr></thead>
+        <tbody>{sites.map(s=>(
+          <tr key={s.id} className="border-b border-gray-50 hover:bg-blue-50/30 cursor-pointer" onClick={()=>loadU(s)}>
+            <td className="py-2.5 px-4 font-medium">{s.site_domain}</td>
+            <td className="py-2.5 px-4"><span className="px-2 py-0.5 rounded-full text-xs bg-gray-100">{s.pdp_source}</span></td>
+            <td className="py-2.5 px-4 text-gray-500">{s.schedule_interval}</td>
+            <td className="py-2.5 px-4">{s.bmp_jsonld_urls?.[0]?.count||0}건</td>
+            <td className="py-2.5 px-4 text-center" onClick={e=>{e.stopPropagation();toggle(s);}}>
+              {s.is_pdp_enabled?<ToggleRight className="w-5 h-5 text-blue-600 mx-auto cursor-pointer"/>:<ToggleLeft className="w-5 h-5 text-gray-300 mx-auto cursor-pointer"/>}
+            </td>
+          </tr>
+        ))}</tbody></table>
+      ):(
+        <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50"><th className="text-left py-2 px-4 text-xs text-gray-500">URL</th><th className="text-left py-2 px-4 text-xs text-gray-500">상태</th><th className="text-left py-2 px-4 text-xs text-gray-500">추출일</th><th className="text-left py-2 px-4 text-xs text-gray-500">에러</th></tr></thead>
+        <tbody>{urls.map(u=>(
+          <tr key={u.id} className="border-b border-gray-50">
+            <td className="py-2.5 px-4 text-xs max-w-[300px] truncate"><a href={u.product_url} target="_blank" rel="noopener" className="text-blue-600 hover:underline">{u.product_url.replace(/^https?:\/\//,"").substring(0,60)}</a></td>
+            <td className="py-2.5 px-4"><span className={"px-2 py-0.5 rounded-full text-xs "+sc(u.status)}>{u.status}</span></td>
+            <td className="py-2.5 px-4 text-xs text-gray-400">{u.last_extracted_at?new Date(u.last_extracted_at).toLocaleString("ko-KR"):"—"}</td>
+            <td className="py-2.5 px-4 text-xs text-red-400 max-w-[150px] truncate">{u.error_message||"—"}</td>
+          </tr>
+        ))}</tbody></table>
+      )}
+    </div>
+  </div>);
+}
+
+/* ═══ Analytics ═══ */
+function AnalyticsTab() {
+  const [eeat, setEeat] = useState<Array<Record<string, string | number>>>([]);
+  const [ld, setLd] = useState(true);
+  useEffect(() => { sq("bmp_eeat_scores?select=client_slug,overall_score,overall_grade,experience,expertise,authoritativeness,trustworthiness,created_at&order=created_at.desc&limit=30").then(d=>{setEeat(d);setLd(false);}); }, []);
+  const gc = (g: string) => g==="A"?"text-emerald-600":g==="B"?"text-blue-600":g==="C"?"text-yellow-600":"text-red-600";
+  return (<div>
+    <h2 className="font-bold text-gray-900 mb-4">분석 모니터링</h2>
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="px-4 py-3 border-b bg-gray-50/50"><h3 className="font-semibold text-sm">EEAT 최근 결과 ({eeat.length}건)</h3></div>
+      {ld?<div className="text-center py-10"><Loader2 className="w-5 h-5 animate-spin text-gray-300 mx-auto"/></div>:(
+        <table className="w-full text-sm"><thead><tr className="border-b">
+          <th className="text-left py-2 px-4 text-xs text-gray-500">고객</th>
+          <th className="text-center py-2 px-4 text-xs text-gray-500">등급</th>
+          <th className="text-center py-2 px-4 text-xs text-gray-500">총점</th>
+          <th className="text-center py-2 px-4 text-xs text-gray-500">Exp</th>
+          <th className="text-center py-2 px-4 text-xs text-gray-500">Exp</th>
+          <th className="text-center py-2 px-4 text-xs text-gray-500">Auth</th>
+          <th className="text-center py-2 px-4 text-xs text-gray-500">Trust</th>
+          <th className="text-left py-2 px-4 text-xs text-gray-500">일시</th>
+        </tr></thead><tbody>{eeat.map((r,i)=>(
+          <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
+            <td className="py-2.5 px-4 font-medium text-gray-900">{r.client_slug}</td>
+            <td className={"py-2.5 px-4 text-center font-bold "+gc(String(r.overall_grade))}>{r.overall_grade}</td>
+            <td className="py-2.5 px-4 text-center font-mono">{r.overall_score}</td>
+            <td className="py-2.5 px-4 text-center text-xs">{r.experience}</td>
+            <td className="py-2.5 px-4 text-center text-xs">{r.expertise}</td>
+            <td className="py-2.5 px-4 text-center text-xs">{r.authoritativeness}</td>
+            <td className="py-2.5 px-4 text-center text-xs">{r.trustworthiness}</td>
+            <td className="py-2.5 px-4 text-xs text-gray-400">{r.created_at?new Date(String(r.created_at)).toLocaleDateString("ko-KR"):"—"}</td>
+          </tr>
+        ))}</tbody></table>
+      )}
+    </div>
+  </div>);
 }
