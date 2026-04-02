@@ -1091,6 +1091,7 @@ export default function ClientPage() {
   const [gammaFormat, setGammaFormat] = useState<string>("presentation");
   const [gammaDimensions, setGammaDimensions] = useState<string>("16x9");
   const [gammaExport, setGammaExport] = useState<string>("pptx");
+  const [gammaSource, setGammaSource] = useState<{ title: string; content: string; type?: string; llm?: string } | null>(null);
   const [clPageImproveResult, setClPageImproveResult] = useState<any>(null);
   const [clPageImproveLoading, setClPageImproveLoading] = useState(false);
 
@@ -2340,7 +2341,7 @@ export default function ClientPage() {
               });
               const d = await r.json();
               setClGenResult(d);
-              if (d.success) { setClHistory(prev => [...prev, d]); loadSavedContents(); }
+              if (d.success) { setClHistory(prev => [...prev, d]); loadSavedContents(); setGammaSource({ title: d.content?.match(/^#\s+(.+)$/m)?.[1] || d.content_label || "생성 결과", content: d.content, type: d.content_type || t, llm: d.llm || l }); setGammaResult(null); }
             } catch {}
             setClGenLoading(false);
           };
@@ -2653,89 +2654,89 @@ export default function ClientPage() {
               {clMode === "generate" && (
               <div className="space-y-8">
 
-              {/* 🎨 Gamma 디자인 패키징 — 항상 노출 */}
-              <div className={`rounded-xl border p-3 transition-all ${(clGenResult?.success || clViewContent) ? "bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200" : "bg-gray-50 border-gray-200"}`}>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-base">🎨</span>
-                    <span className="text-sm font-bold text-gray-800">Gamma 패키징</span>
+              {/* 🎨 Gamma 디자인 패키징 — 시각적 패널 */}
+              <div className="rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50/80 to-blue-50/80 overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🎨</span>
+                    <span className="text-sm font-bold text-gray-900">Gamma 디자인 패키징</span>
+                    {gammaSource && <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium truncate max-w-[200px]">{gammaSource.title}</span>}
                   </div>
-                  {(clGenResult?.success || clViewContent) ? (() => {
-                    const src = clGenResult?.success ? clGenResult : clViewContent;
-                    const srcTitle = clGenResult?.success ? (clGenResult.content?.match(/^#\s+(.+)$/m)?.[1] || clGenResult.content_label || "생성 결과") : (clViewContent?.title || "선택된 콘텐츠");
-                    const srcContent = clGenResult?.success ? clGenResult.content : clViewContent?.body_md;
-                    return (<>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 text-purple-700 font-medium truncate max-w-[180px]">{srcTitle}</span>
-                      <select value={gammaFormat} onChange={e => {
-                        const f = e.target.value;
-                        setGammaFormat(f);
-                        if (f === "presentation") { setGammaDimensions("16x9"); setGammaExport("pptx"); }
-                        else if (f === "social") { setGammaDimensions("4x5"); setGammaExport("png"); }
-                        else if (f === "document") { setGammaDimensions("a4"); setGammaExport("pdf"); }
-                        else { setGammaDimensions("fluid"); setGammaExport("pdf"); }
-                      }} className="text-xs border rounded-lg px-2 py-1 bg-white">
-                        <option value="presentation">📊 프레젠테이션</option>
-                        <option value="social">📱 소셜카드</option>
-                        <option value="document">📄 문서</option>
-                        <option value="webpage">🌐 웹페이지</option>
-                      </select>
-                      {gammaFormat === "social" && (
-                        <select value={gammaDimensions} onChange={e => setGammaDimensions(e.target.value)} className="text-xs border rounded-lg px-2 py-1 bg-white">
-                          <option value="4x5">4:5</option><option value="9x16">9:16</option><option value="1x1">1:1</option>
-                        </select>
-                      )}
-                      <select value={gammaExport} onChange={e => setGammaExport(e.target.value)} className="text-xs border rounded-lg px-2 py-1 bg-white">
-                        <option value="pptx">PPTX</option><option value="pdf">PDF</option><option value="png">PNG</option>
-                      </select>
-                      {!gammaLoading && !gammaResult && (
-                        <button onClick={async () => {
-                          setGammaLoading(true); setGammaResult(null);
-                          try {
-                            const r = await fetch(efBase + "/geobh-gamma", {
-                              method: "POST", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                slug: client, partner, content: srcContent,
-                                gamma_format: gammaFormat, gamma_dimensions: gammaDimensions,
-                                export_as: gammaExport, card_split: "inputTextBreaks",
-                                language: "ko", text_mode: "generate", tone: "professional, modern",
-                                input_content_type: clGenResult?.content_type || clSelectedType || clViewContent?.content_type,
-                                input_llm: clGenResult?.llm || clViewContent?.llm_provider,
-                              }),
-                            });
-                            setGammaResult(await r.json());
-                          } catch {}
-                          setGammaLoading(false);
-                        }} className="px-3 py-1.5 rounded-lg text-white text-xs font-bold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-sm whitespace-nowrap">
-                          🚀 디자인 생성
-                        </button>
-                      )}
-                      {gammaLoading && (
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                          <span className="text-[11px] text-gray-500">생성 중 (30~60초)...</span>
+                  {gammaResult?.success && (
+                    <div className="flex items-center gap-2">
+                      <a href={gammaResult.export_url} target="_blank" rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-white border text-xs font-bold text-gray-900 hover:shadow-md">📥 {gammaExport.toUpperCase()}</a>
+                      <a href={gammaResult.gamma_url} target="_blank" rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-white border text-xs font-bold text-purple-700 hover:shadow-md">👁️ 미리보기</a>
+                      <a href={gammaResult.gamma_url} target="_blank" rel="noopener noreferrer"
+                        className="text-[10px] text-purple-600 hover:underline">✏️ 편집</a>
+                      <button onClick={() => setGammaResult(null)} className="text-[10px] text-gray-400 hover:text-gray-600">↻</button>
+                    </div>
+                  )}
+                </div>
+                <div className="px-4 pb-3 grid grid-cols-4 gap-2">
+                  {[
+                    { key: "presentation", icon: "📊", label: "프레젠테이션", desc: "16:9 슬라이드", dim: "16x9", exp: "pptx" },
+                    { key: "social", icon: "📱", label: "소셜카드", desc: "인스타 · 스토리", dim: "4x5", exp: "png" },
+                    { key: "document", icon: "📄", label: "문서 / PDF", desc: "A4 리포트", dim: "a4", exp: "pdf" },
+                    { key: "webpage", icon: "🌐", label: "웹페이지", desc: "호스팅 URL", dim: "fluid", exp: "pdf" },
+                  ].map(fmt => {
+                    const active = gammaFormat === fmt.key;
+                    return (
+                      <button key={fmt.key} onClick={() => { setGammaFormat(fmt.key); setGammaDimensions(fmt.dim); setGammaExport(fmt.exp); setGammaResult(null); }}
+                        className={`p-2.5 rounded-lg border text-left transition-all ${active ? "bg-white border-purple-400 ring-1 ring-purple-300 shadow-sm" : "bg-white/60 border-gray-200 hover:bg-white hover:border-purple-200"}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg">{fmt.icon}</span>
+                          {active && <span className="w-2 h-2 rounded-full bg-purple-500" />}
                         </div>
-                      )}
-                      {gammaResult?.success && (
-                        <div className="flex items-center gap-2">
-                          <a href={gammaResult.export_url} target="_blank" rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg bg-white border text-xs font-bold text-gray-900 hover:shadow-md">
-                            📥 {gammaExport.toUpperCase()}
-                          </a>
-                          <a href={gammaResult.gamma_url} target="_blank" rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg bg-white border text-xs font-bold text-gray-900 hover:shadow-md">
-                            👁️ 미리보기
-                          </a>
-                          <a href={gammaResult.gamma_url} target="_blank" rel="noopener noreferrer"
-                            className="text-[10px] text-purple-600 hover:underline">✏️ 편집</a>
-                          <button onClick={() => setGammaResult(null)} className="text-[10px] text-gray-400">↻</button>
-                        </div>
-                      )}
-                      {gammaResult && !gammaResult.success && (
-                        <><span className="text-[11px] text-red-500">⚠️ 실패</span><button onClick={() => setGammaResult(null)} className="text-[10px] underline text-gray-400">재시도</button></>
-                      )}
-                    </>);
-                  })() : (
-                    <span className="text-xs text-gray-400">콘텐츠를 생성하거나 이력에서 선택하면 PPTX · PDF · PNG · 웹페이지로 변환합니다</span>
+                        <p className={`text-xs font-bold mt-1 ${active ? "text-purple-700" : "text-gray-700"}`}>{fmt.label}</p>
+                        <p className="text-[10px] text-gray-400">{fmt.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {gammaFormat === "social" && (
+                  <div className="px-4 pb-2 flex items-center gap-2">
+                    <span className="text-[10px] text-gray-500">비율:</span>
+                    {[{v:"4x5",l:"4:5 인스타"},{v:"9x16",l:"9:16 스토리"},{v:"1x1",l:"1:1 정사각"}].map(d => (
+                      <button key={d.v} onClick={() => setGammaDimensions(d.v)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border ${gammaDimensions===d.v ? "bg-purple-100 border-purple-300 text-purple-700 font-bold" : "bg-white text-gray-500"}`}>{d.l}</button>
+                    ))}
+                  </div>
+                )}
+                <div className="px-4 pb-3">
+                  {gammaLoading ? (
+                    <div className="flex items-center gap-2 py-1">
+                      <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs text-gray-600">Gamma가 디자인을 생성하고 있습니다... (30~60초)</span>
+                    </div>
+                  ) : gammaResult?.success ? (
+                    <div className="text-xs text-green-700 flex items-center gap-1">✅ 생성 완료 — {(gammaResult.elapsed_ms/1000).toFixed(0)}초 · 크레딧 {gammaResult.credits?.deducted} 사용</div>
+                  ) : gammaResult && !gammaResult.success ? (
+                    <div className="text-xs text-red-500 flex items-center gap-2">⚠️ 실패: {gammaResult.message || "타임아웃"} <button onClick={() => setGammaResult(null)} className="underline">재시도</button></div>
+                  ) : gammaSource ? (
+                    <button onClick={async () => {
+                      setGammaLoading(true); setGammaResult(null);
+                      try {
+                        const r = await fetch(efBase + "/geobh-gamma", {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            slug: client, partner, content: gammaSource.content,
+                            gamma_format: gammaFormat, gamma_dimensions: gammaDimensions,
+                            export_as: gammaExport, card_split: "inputTextBreaks",
+                            language: "ko", text_mode: "generate", tone: "professional, modern",
+                            input_content_type: gammaSource.type || clSelectedType,
+                            input_llm: gammaSource.llm,
+                          }),
+                        });
+                        setGammaResult(await r.json());
+                      } catch {}
+                      setGammaLoading(false);
+                    }} className="w-full py-2.5 rounded-lg text-white text-sm font-bold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-sm transition-all">
+                      🚀 &quot;{gammaSource.title.slice(0,25)}{gammaSource.title.length > 25 ? "..." : ""}&quot; → {gammaFormat === "presentation" ? "PPTX" : gammaFormat === "social" ? "PNG" : gammaFormat === "document" ? "PDF" : "웹"} 디자인 생성
+                    </button>
+                  ) : (
+                    <div className="text-xs text-gray-400 text-center py-1">아래에서 콘텐츠를 생성하거나, 이력의 🎨 버튼을 눌러 패키징할 콘텐츠를 선택하세요</div>
                   )}
                 </div>
               </div>
@@ -2998,6 +2999,19 @@ export default function ClientPage() {
                                   } catch (e) { console.error("보기 에러:", e); }
                                 }} className={`px-1.5 py-0.5 rounded border text-[10px] ${isViewing ? "bg-blue-600 text-white border-blue-600" : "text-blue-600 hover:bg-blue-50"}`}>
                                   {isViewing ? "닫기" : "보기"}
+                                </button>
+                                <button onClick={async () => {
+                                  try {
+                                    const { data: rows } = await supabaseClient.from("bmp_generated_contents")
+                                      .select("id,title,content_type,llm_provider,body_md").eq("id", c.id).limit(1);
+                                    if (rows?.[0]?.body_md) {
+                                      setGammaSource({ title: rows[0].title || c.title, content: rows[0].body_md, type: rows[0].content_type, llm: rows[0].llm_provider });
+                                      setGammaResult(null);
+                                      window.scrollTo({ top: 0, behavior: "smooth" });
+                                    }
+                                  } catch {}
+                                }} className="px-1.5 py-0.5 rounded border text-[10px] text-purple-600 hover:bg-purple-50" title="Gamma 패키징">
+                                  🎨
                                 </button>
                                 {c.status !== "published" && (
                                   <button onClick={async () => {
