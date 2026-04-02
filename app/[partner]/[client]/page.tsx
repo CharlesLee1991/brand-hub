@@ -2370,31 +2370,7 @@ export default function ClientPage() {
                 </div>
               </div>
 
-              {/* WordPress Connection Banner */}
-              {wpConnection ? (
-                <div className="flex items-center justify-between px-4 py-2 rounded-xl border bg-blue-50/30 border-blue-100 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-500" />
-                    <span className="text-gray-600">WordPress 연동됨</span>
-                    <span className="text-blue-600 font-medium">{(wpConnection.site_url || "").replace(/^https?:\/\//, "")}</span>
-                  </div>
-                  <button onClick={() => window.open(`https://wordpress.com/posts/${wpConnection.blog_id}`, "_blank")}
-                    className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all">
-                    연동 확인 ↗
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border bg-gray-50 border-gray-200 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span>🔗</span>
-                    <span className="text-gray-500">WordPress 연동 시 AI 콘텐츠를 사이트에 바로 발행할 수 있습니다</span>
-                  </div>
-                  <button onClick={connectWordPress}
-                    className="px-3 py-1.5 rounded-lg border border-blue-300 bg-white text-blue-600 font-medium hover:bg-blue-50 transition-all">
-                    WordPress 연동
-                  </button>
-                </div>
-              )}
+              {/* WordPress Connection Banner — hidden */}
 
               {/* ── PAGE IMPROVE MODE ── */}
               {clMode === "improve" && (
