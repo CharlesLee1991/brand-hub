@@ -1083,6 +1083,13 @@ export default function ClientPage() {
   const [clViewImprove, setClViewImprove] = useState<any>(null);
   const [clCrawledPages, setClCrawledPages] = useState<any[]>([]);
   const [clSelectedPage, setClSelectedPage] = useState<any>(null);
+
+  // Gamma Packaging state
+  const [gammaLoading, setGammaLoading] = useState(false);
+  const [gammaResult, setGammaResult] = useState<any>(null);
+  const [gammaFormat, setGammaFormat] = useState<string>("presentation");
+  const [gammaDimensions, setGammaDimensions] = useState<string>("16x9");
+  const [gammaExport, setGammaExport] = useState<string>("pptx");
   const [clPageImproveResult, setClPageImproveResult] = useState<any>(null);
   const [clPageImproveLoading, setClPageImproveLoading] = useState(false);
 
@@ -2303,13 +2310,16 @@ export default function ClientPage() {
         {/* ──── CONTENT LAB TAB ──── */}
         {activeSection === "contentlab" && (() => {
           const CL_TYPES = [
-            { key: "blog", label: "블로그/홈페이지", icon: "📝", desc: "EEAT 기반 SEO 콘텐츠", rec: "claude" },
-            { key: "faq", label: "FAQ + Schema", icon: "❓", desc: "구조화 FAQ + JSON-LD", rec: "claude" },
-            { key: "youtube", label: "YouTube 대본", icon: "🎬", desc: "영상 스크립트", rec: "gpt" },
-            { key: "ad", label: "광고 배너 카피", icon: "📢", desc: "헤드라인 + CTA 3종", rec: "gpt" },
-            { key: "community", label: "커뮤니티/SNS", icon: "💬", desc: "네이버/인스타/브런치", rec: "gemini" },
-            { key: "social", label: "소셜 트렌드", icon: "🐦", desc: "X 감성 분석 + 여론", rec: "grok" },
-            { key: "jsonld", label: "JSON-LD 구조화", icon: "🔗", desc: "Schema.org 코드", rec: "claude" },
+            { key: "blog", label: "블로그/홈페이지", icon: "📝", desc: "EEAT 기반 SEO 콘텐츠", rec: "claude", gamma: true },
+            { key: "faq", label: "FAQ + Schema", icon: "❓", desc: "구조화 FAQ + JSON-LD", rec: "claude", gamma: false },
+            { key: "youtube", label: "YouTube 대본", icon: "🎬", desc: "영상 스크립트", rec: "gpt", gamma: false },
+            { key: "ad", label: "광고 배너 카피", icon: "📢", desc: "헤드라인 + CTA 3종", rec: "gpt", gamma: false },
+            { key: "community", label: "커뮤니티/SNS", icon: "💬", desc: "네이버/인스타/브런치", rec: "gemini", gamma: true },
+            { key: "social", label: "소셜 트렌드", icon: "🐦", desc: "X 감성 분석 + 여론", rec: "grok", gamma: false },
+            { key: "jsonld", label: "JSON-LD 구조화", icon: "🔗", desc: "Schema.org 코드", rec: "claude", gamma: false },
+            { key: "story", label: "스토리/쇼츠", icon: "🎯", desc: "인스타/틱톡 세로 5장", rec: "gemini", gamma: true },
+            { key: "presentation", label: "프레젠테이션", icon: "🎤", desc: "GEO 리포트 16:9", rec: "claude", gamma: true },
+            { key: "landing", label: "랜딩페이지", icon: "🌐", desc: "캠페인 웹페이지", rec: "claude", gamma: true },
           ];
           const CL_LLMS = [
             { key: "claude", name: "Claude", clr: "#d97706", str: "장문 · 구조화 · 한국어" },
@@ -2772,6 +2782,101 @@ export default function ClientPage() {
                       )}
                     />
                   </div>
+                  {/* Gamma Design Packaging */}
+                  {CL_TYPES.find(c => c.key === (clGenResult.content_type || clSelectedType))?.gamma && (
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">🎨</span>
+                          <span className="font-bold text-gray-900 text-sm">Gamma 디자인 패키징</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">NEW</span>
+                        </div>
+                        {gammaResult?.gamma_url && (
+                          <a href={gammaResult.gamma_url} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-purple-600 hover:underline">✏️ Gamma에서 편집 →</a>
+                        )}
+                      </div>
+                      {!gammaResult && !gammaLoading && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <select value={gammaFormat} onChange={e => {
+                            const f = e.target.value;
+                            setGammaFormat(f);
+                            if (f === "presentation") { setGammaDimensions("16x9"); setGammaExport("pptx"); }
+                            else if (f === "social") { setGammaDimensions("4x5"); setGammaExport("png"); }
+                            else if (f === "document") { setGammaDimensions("a4"); setGammaExport("pdf"); }
+                            else { setGammaDimensions("fluid"); setGammaExport("pdf"); }
+                          }} className="text-xs border rounded-lg px-2 py-1.5 bg-white">
+                            <option value="presentation">프레젠테이션</option>
+                            <option value="social">소셜카드</option>
+                            <option value="document">문서</option>
+                            <option value="webpage">웹페이지</option>
+                          </select>
+                          <select value={gammaDimensions} onChange={e => setGammaDimensions(e.target.value)}
+                            className="text-xs border rounded-lg px-2 py-1.5 bg-white">
+                            {gammaFormat === "presentation" && <><option value="16x9">16:9</option><option value="4x3">4:3</option></>}
+                            {gammaFormat === "social" && <><option value="4x5">4:5 (인스타)</option><option value="9x16">9:16 (스토리)</option><option value="1x1">1:1</option></>}
+                            {gammaFormat === "document" && <><option value="a4">A4</option><option value="letter">Letter</option></>}
+                            {gammaFormat === "webpage" && <option value="fluid">Fluid</option>}
+                          </select>
+                          <select value={gammaExport} onChange={e => setGammaExport(e.target.value)}
+                            className="text-xs border rounded-lg px-2 py-1.5 bg-white">
+                            <option value="pptx">PPTX</option>
+                            <option value="pdf">PDF</option>
+                            <option value="png">PNG</option>
+                          </select>
+                          <button onClick={async () => {
+                            setGammaLoading(true); setGammaResult(null);
+                            try {
+                              const r = await fetch(efBase + "/geobh-gamma", {
+                                method: "POST", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  slug: client, partner: partner,
+                                  content: clGenResult.content,
+                                  gamma_format: gammaFormat, gamma_dimensions: gammaDimensions,
+                                  export_as: gammaExport, card_split: "inputTextBreaks",
+                                  language: "ko", text_mode: "generate",
+                                  tone: "professional, modern", audience: "마케팅 담당자",
+                                  input_content_type: clGenResult.content_type || clSelectedType,
+                                  input_llm: clGenResult.llm,
+                                }),
+                              });
+                              const d = await r.json();
+                              setGammaResult(d);
+                            } catch {}
+                            setGammaLoading(false);
+                          }} className="px-4 py-1.5 rounded-lg text-white text-xs font-bold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+                            🚀 디자인 생성
+                          </button>
+                        </div>
+                      )}
+                      {gammaLoading && (
+                        <div className="flex items-center gap-2 py-2">
+                          <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                          <span className="text-xs text-gray-600">Gamma가 디자인을 생성하고 있습니다... (30~60초)</span>
+                        </div>
+                      )}
+                      {gammaResult?.success && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <a href={gammaResult.export_url} target="_blank" rel="noopener noreferrer"
+                            className="px-4 py-2 rounded-lg bg-white border text-xs font-bold text-gray-900 hover:shadow-md flex items-center gap-1.5">
+                            📥 {gammaExport.toUpperCase()} 다운로드
+                          </a>
+                          <a href={gammaResult.gamma_url} target="_blank" rel="noopener noreferrer"
+                            className="px-4 py-2 rounded-lg bg-white border text-xs font-bold text-gray-900 hover:shadow-md flex items-center gap-1.5">
+                            👁️ 미리보기
+                          </a>
+                          <span className="text-[10px] text-gray-400">
+                            {(gammaResult.elapsed_ms / 1000).toFixed(0)}초 · 크레딧 {gammaResult.credits?.deducted}
+                          </span>
+                          <button onClick={() => { setGammaResult(null); }}
+                            className="text-[10px] text-gray-400 hover:text-gray-600">↻ 다시 생성</button>
+                        </div>
+                      )}
+                      {gammaResult && !gammaResult.success && (
+                        <div className="text-xs text-red-600">⚠️ 생성 실패: {gammaResult.message || "타임아웃"}</div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-gray-500">다른 AI 비교:</span>
                     {CL_LLMS.filter(l => l.key !== clGenResult.llm).map(llm => (
