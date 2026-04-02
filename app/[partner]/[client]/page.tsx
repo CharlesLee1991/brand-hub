@@ -1092,6 +1092,7 @@ export default function ClientPage() {
   const [gammaDimensions, setGammaDimensions] = useState<string>("16x9");
   const [gammaExport, setGammaExport] = useState<string>("pptx");
   const [gammaSource, setGammaSource] = useState<{ title: string; content: string; type?: string; llm?: string } | null>(null);
+  const [gammaHistory, setGammaHistory] = useState<any[]>([]);
   const [clPageImproveResult, setClPageImproveResult] = useState<any>(null);
   const [clPageImproveLoading, setClPageImproveLoading] = useState(false);
 
@@ -1273,8 +1274,16 @@ export default function ClientPage() {
   };
 
   // Auto-load saved contents when contentlab tab opens
+  const loadGammaHistory = async () => {
+    if (!client) return;
+    const { data } = await supabaseClient.from("bmp_gamma_generations")
+      .select("id,gamma_format,gamma_dimensions,export_as,gamma_url,export_url,credits_deducted,input_text_preview,input_content_type,status,elapsed_ms,created_at")
+      .eq("client_slug", client).eq("status", "completed")
+      .order("created_at", { ascending: false }).limit(20);
+    if (data) setGammaHistory(data);
+  };
   useEffect(() => {
-    if (activeSection === "contentlab" && client) { loadSavedContents(); loadSavedImproves(); }
+    if (activeSection === "contentlab" && client) { loadSavedContents(); loadSavedImproves(); loadGammaHistory(); }
   }, [activeSection, client]);
 
   // Analysis status & trigger
@@ -2729,7 +2738,7 @@ export default function ClientPage() {
                             input_llm: gammaSource.llm,
                           }),
                         });
-                        setGammaResult(await r.json());
+                        const gd = await r.json(); setGammaResult(gd); if (gd.success) loadGammaHistory();
                       } catch {}
                       setGammaLoading(false);
                     }} className="w-full py-2.5 rounded-lg text-white text-sm font-bold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-sm transition-all">
@@ -3049,6 +3058,56 @@ export default function ClientPage() {
                 )}
               </div>
                 ); })()}
+
+              {/* 🎨 Gamma 산출물 갤러리 */}
+              {gammaHistory.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                      🎨 Gamma 산출물 ({gammaHistory.length}건)
+                    </h4>
+                    <button onClick={loadGammaHistory} className="text-xs text-purple-600 hover:underline flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3" /> 새로고침
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {gammaHistory.map((g: any) => {
+                      const fmtIcon = g.gamma_format === "presentation" ? "📊" : g.gamma_format === "social" ? "📱" : g.gamma_format === "document" ? "📄" : "🌐";
+                      const fmtLabel = g.gamma_format === "presentation" ? "프레젠테이션" : g.gamma_format === "social" ? "소셜카드" : g.gamma_format === "document" ? "문서" : "웹페이지";
+                      const date = new Date(g.created_at);
+                      const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,"0")}`;
+                      return (
+                        <div key={g.id} className="bg-white rounded-xl border hover:shadow-md transition-all overflow-hidden group">
+                          <div className="p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-base">{fmtIcon}</span>
+                                <span className="text-xs font-bold text-gray-800">{fmtLabel}</span>
+                                <span className="text-[10px] text-gray-400">{g.gamma_dimensions}</span>
+                              </div>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-bold">{g.export_as?.toUpperCase()}</span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 truncate mb-2">{g.input_text_preview || "—"}</p>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-gray-400">{dateStr} · {g.credits_deducted}cr</span>
+                              <div className="flex items-center gap-1.5">
+                                {g.export_url && (
+                                  <a href={g.export_url} target="_blank" rel="noopener noreferrer"
+                                    className="px-2 py-1 rounded border text-[10px] font-bold text-gray-700 hover:bg-gray-50">📥 다운로드</a>
+                                )}
+                                {g.gamma_url && (
+                                  <a href={g.gamma_url} target="_blank" rel="noopener noreferrer"
+                                    className="px-2 py-1 rounded border text-[10px] font-bold text-purple-600 hover:bg-purple-50">👁️ 보기</a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
             )} {/* close generate mode */}
           </div>
