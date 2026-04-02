@@ -2748,6 +2748,37 @@ export default function ClientPage() {
                     <div className="text-xs text-gray-400 text-center py-1">아래에서 콘텐츠를 생성하거나, 이력의 🎨 버튼을 눌러 패키징할 콘텐츠를 선택하세요</div>
                   )}
                 </div>
+                {/* 이미 생성된 Gamma 산출물 */}
+                {gammaHistory.length > 0 && (
+                  <div className="px-4 pb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-gray-600">최근 산출물 ({gammaHistory.length}건)</span>
+                      <button onClick={loadGammaHistory} className="text-[10px] text-purple-500 hover:underline">새로고침</button>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                      {gammaHistory.slice(0, 6).map((g: any) => {
+                        const fmtIcon = g.gamma_format === "presentation" ? "📊" : g.gamma_format === "social" ? "📱" : g.gamma_format === "document" ? "📄" : "🌐";
+                        const date = new Date(g.created_at);
+                        const dateStr = (date.getMonth()+1) + "/" + date.getDate() + " " + date.getHours() + ":" + String(date.getMinutes()).padStart(2,"0");
+                        return (
+                          <div key={g.id} className="bg-white rounded-lg border p-2.5 hover:shadow-sm transition-all">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span>{fmtIcon}</span>
+                              <span className="text-[10px] font-bold text-gray-700">{g.gamma_dimensions}</span>
+                              <span className="text-[10px] px-1 rounded bg-purple-50 text-purple-600">{g.export_as?.toUpperCase()}</span>
+                              <span className="text-[10px] text-gray-400 ml-auto">{dateStr}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-500 truncate mb-1.5">{g.input_text_preview || "—"}</p>
+                            <div className="flex items-center gap-1.5">
+                              {g.export_url && <a href={g.export_url} target="_blank" rel="noopener noreferrer" className="flex-1 text-center px-2 py-1 rounded border text-[10px] font-bold text-gray-700 hover:bg-gray-50">📥 다운로드</a>}
+                              {g.gamma_url && <a href={g.gamma_url} target="_blank" rel="noopener noreferrer" className="flex-1 text-center px-2 py-1 rounded border text-[10px] font-bold text-purple-600 hover:bg-purple-50">👁️ 보기/편집</a>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Content Type Cards */}
@@ -3058,56 +3089,6 @@ export default function ClientPage() {
                 )}
               </div>
                 ); })()}
-
-              {/* 🎨 Gamma 산출물 갤러리 */}
-              {gammaHistory.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                      🎨 Gamma 산출물 ({gammaHistory.length}건)
-                    </h4>
-                    <button onClick={loadGammaHistory} className="text-xs text-purple-600 hover:underline flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3" /> 새로고침
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    {gammaHistory.map((g: any) => {
-                      const fmtIcon = g.gamma_format === "presentation" ? "📊" : g.gamma_format === "social" ? "📱" : g.gamma_format === "document" ? "📄" : "🌐";
-                      const fmtLabel = g.gamma_format === "presentation" ? "프레젠테이션" : g.gamma_format === "social" ? "소셜카드" : g.gamma_format === "document" ? "문서" : "웹페이지";
-                      const date = new Date(g.created_at);
-                      const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,"0")}`;
-                      return (
-                        <div key={g.id} className="bg-white rounded-xl border hover:shadow-md transition-all overflow-hidden group">
-                          <div className="p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-base">{fmtIcon}</span>
-                                <span className="text-xs font-bold text-gray-800">{fmtLabel}</span>
-                                <span className="text-[10px] text-gray-400">{g.gamma_dimensions}</span>
-                              </div>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-bold">{g.export_as?.toUpperCase()}</span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 truncate mb-2">{g.input_text_preview || "—"}</p>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-gray-400">{dateStr} · {g.credits_deducted}cr</span>
-                              <div className="flex items-center gap-1.5">
-                                {g.export_url && (
-                                  <a href={g.export_url} target="_blank" rel="noopener noreferrer"
-                                    className="px-2 py-1 rounded border text-[10px] font-bold text-gray-700 hover:bg-gray-50">📥 다운로드</a>
-                                )}
-                                {g.gamma_url && (
-                                  <a href={g.gamma_url} target="_blank" rel="noopener noreferrer"
-                                    className="px-2 py-1 rounded border text-[10px] font-bold text-purple-600 hover:bg-purple-50">👁️ 보기</a>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
             )} {/* close generate mode */}
           </div>
