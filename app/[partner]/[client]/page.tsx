@@ -1379,15 +1379,23 @@ export default function ClientPage() {
       setAbFetched(true);
       const sb = createClient();
       const domain = analysisStatus?.brand?.site_domain?.replace(/https?:\/\//, "").replace(/\/$/, "") || "";
+      const clientSlug = (client as string).toLowerCase();
       sb.from("bmp_jsonld_ab_tests")
         .select("*")
         .order("created_at", { ascending: false })
         .then(({ data }: { data: any }) => {
           const all = data || [];
-          const filtered = domain ? all.filter((t: any) => {
-            const td = t.site_domain.replace(/https?:\/\//, "").replace(/\/$/, "");
-            return td.includes(domain) || domain.includes(td);
-          }) : all;
+          // Match by domain OR by client slug (handles punycode/Korean domains)
+          const filtered = all.filter((t: any) => {
+            const td = (t.site_domain || "").replace(/https?:\/\//, "").replace(/\/$/, "").toLowerCase();
+            const tHub = (t.hub_url || "").toLowerCase();
+            const tOrig = (t.original_url || "").toLowerCase();
+            // Domain match
+            if (domain && (td.includes(domain) || domain.includes(td))) return true;
+            // Slug match — check if client slug appears in site_domain, hub_url, or original_url
+            if (clientSlug && (td.includes(clientSlug) || tHub.includes(clientSlug) || tOrig.includes(clientSlug))) return true;
+            return false;
+          });
           const result = filtered.length > 0 ? filtered : all;
           setAbTests(result);
           if (result.length > 0) {
@@ -3546,7 +3554,7 @@ Content-Type: application/json
                       <div className="text-xs font-bold text-red-600 mt-1 uppercase">원본 GEO 점수</div>
                       {abOriginalJsonld?.data && (
                         <div className="flex flex-wrap justify-center gap-1 mt-2">
-                          {abOriginalJsonld.data.map((s: any, i: number) => (
+                          {(Array.isArray(abOriginalJsonld.data) ? abOriginalJsonld.data : (abOriginalJsonld.data?.["@graph"] || [])).map((s: any, i: number) => (
                             <span key={i} className="px-1.5 py-0.5 rounded text-[10px] bg-red-50 text-red-500 border border-red-100">{s["@type"]}</span>
                           ))}
                         </div>
@@ -3561,7 +3569,7 @@ Content-Type: application/json
                       <div className="text-xs font-bold text-green-700 mt-1 uppercase">Brand Hub GEO 점수{!t.score_b_result && t.variant_b?.expected_score ? " (예상)" : ""}</div>
                       {abHubJsonld?.data && (
                         <div className="flex flex-wrap justify-center gap-1 mt-2">
-                          {abHubJsonld.data.map((s: any, i: number) => (
+                          {(Array.isArray(abHubJsonld.data) ? abHubJsonld.data : (abHubJsonld.data?.["@graph"] || [])).map((s: any, i: number) => (
                             <span key={i} className="px-1.5 py-0.5 rounded text-[10px] bg-green-50 text-green-600 border border-green-100">{s["@type"]}</span>
                           ))}
                         </div>
