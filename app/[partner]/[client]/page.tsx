@@ -1083,6 +1083,7 @@ export default function ClientPage() {
   const [clViewImprove, setClViewImprove] = useState<any>(null);
   const [clCrawledPages, setClCrawledPages] = useState<any[]>([]);
   const [clSelectedPage, setClSelectedPage] = useState<any>(null);
+  const [clPageListExpanded, setClPageListExpanded] = useState(false);
 
   // Gamma Packaging state
   const [gammaLoading, setGammaLoading] = useState(false);
@@ -2417,67 +2418,7 @@ export default function ClientPage() {
                     ))}
                   </div>
 
-                  {/* ── 크롤링된 페이지 리스트 ── */}
-                  {clCrawledPages.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-gray-700">
-                          크롤링된 페이지 ({clCrawledPages.length}개)
-                          {clSelectedPage && <span className="text-xs text-gray-400 font-normal ml-2">— 페이지를 선택하면 AI가 개별 개선안을 생성합니다</span>}
-                        </h4>
-                        <button onClick={loadCrawledPages} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                          <RefreshCw className="w-3 h-3" /> 새로고침
-                        </button>
-                      </div>
-
-                      <div className="bg-white rounded-xl border overflow-hidden">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="bg-gray-50 border-b text-gray-500">
-                              <th className="px-3 py-2 text-left font-medium">유형</th>
-                              <th className="px-3 py-2 text-left font-medium">페이지</th>
-                              <th className="px-3 py-2 text-left font-medium">URL</th>
-                              <th className="px-3 py-2 text-center font-medium">상태</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {clCrawledPages.map((pg: any) => {
-                              const isProduct = pg.url?.includes("/product/");
-                              const isSelected = clSelectedPage?.id === pg.id;
-                              const shortUrl = (pg.url || "").replace(/^https?:\/\/[^/]+/, "");
-                              return (
-                                <tr key={pg.id} onClick={() => { if (isSelected) { setClSelectedPage(null); setClPageImproveResult(null); } else { loadPageDetail(pg.id); setClPageImproveResult(null); } }}
-                                  className={`border-b last:border-0 cursor-pointer transition-colors ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}>
-                                  <td className="px-3 py-2.5">
-                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isProduct ? "bg-purple-50 text-purple-600" : "bg-amber-50 text-amber-700"}`}>
-                                      {isProduct ? "상품" : "핵심"}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2.5 font-medium text-gray-800">{pg.title || "(제목 없음)"}</td>
-                                  <td className="px-3 py-2.5 text-gray-400 font-mono text-[10px]">{shortUrl.length > 50 ? shortUrl.slice(0, 50) + "..." : shortUrl}</td>
-                                  <td className="px-3 py-2.5 text-center">
-                                    {isSelected ? (
-                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">선택됨</span>
-                                    ) : (
-                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500">선택</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 rounded-xl border p-6 text-center text-sm text-gray-500">
-                      {analysisStatus?.brand?.site_domain
-                        ? <><Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" /><span>크롤링된 페이지를 불러오는 중...</span></>
-                        : "EEAT 분석을 먼저 실행하면 크롤링된 페이지가 여기에 표시됩니다."}
-                    </div>
-                  )}
-
-                  {/* ── 선택된 페이지 상세 + AI 개선 ── */}
+                  {/* ── 선택된 페이지 상세 + AI 개선 (상단 배치) ── */}
                   {clSelectedPage && (
                     <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
                       <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
@@ -2561,6 +2502,72 @@ export default function ClientPage() {
                           {clPageImproveResult.details && <p className="text-xs text-red-500 mt-1">{clPageImproveResult.details?.slice(0, 200)}</p>}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* ── 크롤링된 페이지 리스트 (페이징) ── */}
+                  {clCrawledPages.length > 0 ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-gray-700">
+                          크롤링된 페이지 ({clCrawledPages.length}개)
+                          <span className="text-xs text-gray-400 font-normal ml-2">— 클릭하여 AI 개선안 생성</span>
+                        </h4>
+                        <button onClick={loadCrawledPages} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3" /> 새로고침
+                        </button>
+                      </div>
+                      <div className="bg-white rounded-xl border overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 border-b text-gray-500">
+                              <th className="px-3 py-2 text-left font-medium">유형</th>
+                              <th className="px-3 py-2 text-left font-medium">페이지</th>
+                              <th className="px-3 py-2 text-left font-medium">URL</th>
+                              <th className="px-3 py-2 text-center font-medium">상태</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(clPageListExpanded ? clCrawledPages : clCrawledPages.slice(0, 8)).map((pg: any) => {
+                              const isProduct = pg.url?.includes("/product/");
+                              const isSelected = clSelectedPage?.id === pg.id;
+                              const shortUrl = (pg.url || "").replace(/^https?:\/\/[^/]+/, "");
+                              return (
+                                <tr key={pg.id} onClick={() => { if (isSelected) { setClSelectedPage(null); setClPageImproveResult(null); } else { loadPageDetail(pg.id); setClPageImproveResult(null); } }}
+                                  className={`border-b last:border-0 cursor-pointer transition-colors ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                                  <td className="px-3 py-2.5">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isProduct ? "bg-purple-50 text-purple-600" : "bg-amber-50 text-amber-700"}`}>
+                                      {isProduct ? "상품" : "핵심"}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 font-medium text-gray-800">{pg.title || "(제목 없음)"}</td>
+                                  <td className="px-3 py-2.5 text-gray-400 font-mono text-[10px]">{shortUrl.length > 50 ? shortUrl.slice(0, 50) + "..." : shortUrl}</td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    {isSelected ? (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">선택됨</span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500">선택</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        {clCrawledPages.length > 8 && (
+                          <button onClick={() => setClPageListExpanded(!clPageListExpanded)}
+                            className="w-full py-2.5 text-xs font-bold text-center border-t hover:bg-gray-50 transition-colors"
+                            style={{ color }}>
+                            {clPageListExpanded ? `접기 ▲` : `더보기 (${clCrawledPages.length - 8}개 더) ▼`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl border p-6 text-center text-sm text-gray-500">
+                      {analysisStatus?.brand?.site_domain
+                        ? <><Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" /><span>크롤링된 페이지를 불러오는 중...</span></>
+                        : "EEAT 분석을 먼저 실행하면 크롤링된 페이지가 여기에 표시됩니다."}
                     </div>
                   )}
 
