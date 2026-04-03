@@ -3305,9 +3305,9 @@ export default function ClientPage() {
             <div className="bg-white rounded-2xl border p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-2">🔗 JSON-LD 설치 도구</h3>
               <p className="text-sm text-gray-500 mb-4">
-                고객 사이트에 JSON-LD를 설치하는 방법입니다. GTM 방식과 서버사이드 방식을 제공합니다.
+                고객 사이트에 JSON-LD를 설치하는 방법입니다. GTM, 서버사이드, HTML 직접 삽입 방식을 제공합니다.
               </p>
-              <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <div className="grid md:grid-cols-3 gap-4 mb-6">
                 <div className="p-4 rounded-xl border-2 border-yellow-400 bg-yellow-50">
                   <h4 className="font-bold text-yellow-800 mb-1">방법 1: GTM 자동 삽입</h4>
                   <div className="flex gap-1 mb-2">
@@ -3317,12 +3317,20 @@ export default function ClientPage() {
                   <p className="text-xs text-yellow-700">GTM 커스텀 HTML 태그 하나로 전체 사이트 자동 적용. 단, AI 크롤러는 못 봄.</p>
                 </div>
                 <div className="p-4 rounded-xl border-2 border-green-400 bg-green-50">
-                  <h4 className="font-bold text-green-800 mb-1">방법 2: 서버사이드 (권장)</h4>
+                  <h4 className="font-bold text-green-800 mb-1">방법 2: 서버사이드 API</h4>
                   <div className="flex gap-1 mb-2">
                     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">AI 크롤러 ✅</span>
                     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Google ✅</span>
                   </div>
-                  <p className="text-xs text-green-700">소스코드 직접 삽입 또는 API 호출로 자동 업데이트.</p>
+                  <p className="text-xs text-green-700">자체 서버에서 API 호출 후 HTML에 삽입. 자동 업데이트.</p>
+                </div>
+                <div className="p-4 rounded-xl border-2 border-blue-400 bg-blue-50">
+                  <h4 className="font-bold text-blue-800 mb-1">방법 3: HTML 직접 삽입</h4>
+                  <div className="flex gap-1 mb-2">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">AI 크롤러 ✅</span>
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Google ✅</span>
+                  </div>
+                  <p className="text-xs text-blue-700">Cafe24 등 임대몰 head/body에 직접 삽입. 정적 태그로 AI 크롤러도 인식.</p>
                 </div>
               </div>
 
@@ -3382,6 +3390,73 @@ export default function ClientPage() {
                 </div>
               </div>
 
+              {/* 방법 3: HTML 직접 삽입 (Cafe24 등) */}
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-900 mb-2">📌 방법 3: HTML 직접 삽입 (Cafe24/임대몰)</h4>
+                <p className="text-xs text-gray-500 mb-3">
+                  홈페이지·브랜드 페이지용 정적 JSON-LD를 head에 직접 삽입합니다. 서버에서 렌더링되므로 AI 크롤러(GPTBot, ClaudeBot)도 인식합니다.
+                  <br />상품 상세 페이지는 Cafe24가 자동 생성하므로 별도 작업 불필요합니다.
+                </p>
+
+                {/* Step 1: JSON-LD 확인 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-3">
+                  <p className="text-sm font-semibold text-blue-900 mb-2">Step 1. 홈페이지 JSON-LD 확인</p>
+                  <p className="text-xs text-blue-700 mb-2">아래 버튼을 클릭하면 이 사이트의 JSON-LD를 확인할 수 있습니다. 결과의 <code className="bg-blue-100 px-1 rounded">data</code> 값을 복사하세요.</p>
+                  <a href={`https://nntuztaehnywdbttrajy.supabase.co/functions/v1/geobh-jsonld?url=https://${encodeURIComponent(eeatData?.analysis?.url?.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "") || client)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg">
+                    🔍 이 사이트 JSON-LD 미리보기
+                  </a>
+                </div>
+
+                {/* Step 2: 삽입 코드 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-3">
+                  <p className="text-sm font-semibold text-blue-900 mb-2">Step 2. head 태그에 삽입</p>
+                  <p className="text-xs text-blue-700 mb-2">Step 1에서 확인한 JSON-LD를 아래 형식으로 head에 삽입하세요.</p>
+                  <div className="relative">
+                    <pre className="bg-slate-800 text-slate-200 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                      <code id="static-jsonld-code">{`<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "name": "브랜드명",
+      "url": "https://사이트주소"
+    },
+    {
+      "@type": "WebSite",
+      "name": "브랜드명",
+      "url": "https://사이트주소",
+      "publisher": {"@type": "Organization", "name": "브랜드명"}
+    }
+  ]
+}
+</script>`}</code>
+                    </pre>
+                    <button onClick={() => {
+                      const el = document.getElementById("static-jsonld-code");
+                      if (el) { navigator.clipboard.writeText(el.textContent || ""); }
+                    }} className="absolute top-2 right-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded">복사</button>
+                  </div>
+                </div>
+
+                {/* Cafe24 경로 안내 */}
+                <div className="bg-gray-50 border rounded-lg p-4">
+                  <p className="text-sm font-semibold text-gray-900 mb-2">☕ Cafe24 삽입 경로</p>
+                  <div className="space-y-1 text-xs text-gray-600">
+                    <p><strong>방법 A:</strong> 관리자 → 쇼핑몰 설정 → 기본 설정 → 검색엔진최적화(SEO) → 고급 설정 → Head 태그 삽입</p>
+                    <p><strong>방법 B:</strong> 관리자 → 디자인 → 스마트디자인 편집 → layout.html → &lt;head&gt; 영역에 삽입</p>
+                  </div>
+                  <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+                    <strong>💡 참고:</strong> 상품 상세 페이지의 Product JSON-LD는 Cafe24가 자동 생성합니다 (name, image, brand, offers 포함). 별도 작업이 필요하지 않습니다.
+                  </div>
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                    <strong>🔄 향후:</strong> Cafe24 ScriptTags API 연동 시 수동 삽입 없이 자동 설치·업데이트가 가능합니다.
+                  </div>
+                </div>
+              </div>
+
               {/* 상세 가이드 링크 */}
               <div className="flex gap-3">
                 <a href="/jsonld-tools" className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: color }}>
@@ -3399,13 +3474,14 @@ export default function ClientPage() {
             <div className="bg-white rounded-2xl border p-6">
               <h4 className="font-bold text-gray-900 mb-3">📊 방법별 비교</h4>
               <table className="w-full text-sm">
-                <thead><tr className="border-b"><th className="text-left py-2 text-xs text-gray-500">항목</th><th className="text-left py-2 text-xs text-gray-500">GTM</th><th className="text-left py-2 text-xs text-gray-500">소스코드 직접</th><th className="text-left py-2 text-xs text-gray-500">API 호출</th></tr></thead>
+                <thead><tr className="border-b"><th className="text-left py-2 text-xs text-gray-500">항목</th><th className="text-left py-2 text-xs text-gray-500">GTM</th><th className="text-left py-2 text-xs text-gray-500">서버사이드 API</th><th className="text-left py-2 text-xs text-gray-500">HTML 직접 삽입</th></tr></thead>
                 <tbody>
-                  <tr className="border-b border-gray-100"><td className="py-2">AI 크롤러</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">❌</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">AI 크롤러</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">❌</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅ 정적</span></td></tr>
                   <tr className="border-b border-gray-100"><td className="py-2">Google</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td></tr>
-                  <tr className="border-b border-gray-100"><td className="py-2">개발 필요</td><td>없음</td><td>최소</td><td>중간</td></tr>
-                  <tr className="border-b border-gray-100"><td className="py-2">자동 업데이트</td><td>수동</td><td>수동</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">자동</span></td></tr>
-                  <tr><td className="py-2">추천 대상</td><td>마케터</td><td>개발팀</td><td>개발팀</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">개발 필요</td><td>없음</td><td>중간</td><td>없음</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">자동 업데이트</td><td>수동</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">자동</span></td><td>수동 (향후 API 자동)</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">Cafe24 지원</td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">❌</span></td><td><span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">✅ 권장</span></td></tr>
+                  <tr><td className="py-2">추천 대상</td><td>마케터</td><td>자체 서버 운영</td><td>임대몰 (Cafe24 등)</td></tr>
                 </tbody>
               </table>
             </div>
