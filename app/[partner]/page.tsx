@@ -112,7 +112,7 @@ export default function PartnerPage() {
     return (<div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]"><div className="text-center"><h1 className="text-4xl font-bold text-gray-900 mb-4">403</h1><p className="text-gray-600 mb-2">접근 권한이 없습니다.</p><p className="text-sm text-gray-400 mb-6">이 파트너 페이지에 대한 권한이 없습니다.</p><button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-600 hover:underline text-sm">다른 계정으로 로그인</button></div></div>);
   }
   if (!config) {
-    return (<div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]"><div className="text-center"><h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1><p className="text-gray-600 mb-6">등록되지 않은 파트너입니다.</p><Link href="/" className="text-blue-600 hover:underline">홈으로 돌아가기</Link></div></div>);
+    return (<div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]"><div className="text-center"><h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1><p className="text-gray-600 mb-6">등록되지 않은 파트너입니다.</p><button onClick={() => signOut().then(() => router.replace("/login"))} className="text-blue-600 hover:underline">홈으로 돌아가기</button></div></div>);
   }
 
   const color = config.primary_color || "#3B82F6";
