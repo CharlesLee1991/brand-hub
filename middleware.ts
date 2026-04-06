@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/demo"];
+const PUBLIC_PATHS = ["/login", "/demo", "/site"];
 
 // Supabase project ref (from URL: https://nntuztaehnywdbttrajy.supabase.co)
 const SB_REF = "nntuztaehnywdbttrajy";
@@ -73,9 +73,22 @@ export function middleware(req: NextRequest) {
   );
 
   if (!hasAuthCookie) {
+    // ── PUBLIC SITE: subdomain root (/) without auth → public landing page ──
+    if (subdomain && subdomain !== "www" && url.pathname === "/") {
+      const siteUrl = req.nextUrl.clone();
+      siteUrl.pathname = "/site";
+      siteUrl.searchParams.set("slug", subdomain);
+      return NextResponse.rewrite(siteUrl);
+    }
+    // ── /exports/* is also public (file downloads) ──
+    if (subdomain && subdomain !== "www" && url.pathname.startsWith("/exports")) {
+      const exportsUrl = req.nextUrl.clone();
+      exportsUrl.pathname = url.pathname;
+      return NextResponse.rewrite(exportsUrl);
+    }
+
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
-    // Subdomain: redirect to original path (not effectivePath which has subdomain prefix)
     loginUrl.searchParams.set("redirect", subdomain && subdomain !== "www" ? url.pathname : effectivePath);
     if (subdomain && subdomain !== "www") {
       loginUrl.searchParams.set("partner", subdomain);
