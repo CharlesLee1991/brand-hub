@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const BAWEE_EF = "https://nntuztaehnywdbttrajy.supabase.co/functions/v1";
-const SUPABASE_URL = "https://nntuztaehnywdbttrajy.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5udHV6dGFlaG55d2RidHRyYWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5ODg3MzEsImV4cCI6MjA2MzU2NDczMX0.RR8VBYOj8THFQhYh5wQ0SsJj5t7nlHjbx7boFa3VlFg";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nntuztaehnywdbttrajy.supabase.co";
+const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 interface ClientData {
   client_name: string;
