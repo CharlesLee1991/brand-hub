@@ -294,21 +294,6 @@ export default function SiteContent() {
     );
   }
 
-  /* Storage HTML (brandhub-sites) — highest priority */
-  if (storageHtml) {
-    return (
-      <div className="min-h-screen">
-        <iframe
-          srcDoc={storageHtml}
-          className="w-full border-0"
-          style={{ height: "100vh", minHeight: "100vh" }}
-          title={client.client_name + " Brand Hub"}
-          sandbox="allow-same-origin allow-scripts allow-popups allow-top-navigation"
-        />
-      </div>
-    );
-  }
-
   /* Disabled: coming soon */
   if (client.site_mode === "disabled" || !client.site_mode) {
     return (
@@ -325,6 +310,40 @@ export default function SiteContent() {
     );
   }
 
-  /* Method 1: Self-rendered brand site (brandhub mode) */
+  /* Gamma mode: EF-generated static HTML via iframe (pre-contract demo) */
+  if (client.site_mode === "gamma") {
+    if (storageHtml) {
+      return (
+        <div className="min-h-screen">
+          <iframe
+            srcDoc={storageHtml}
+            className="w-full border-0"
+            style={{ height: "100vh", minHeight: "100vh" }}
+            title={client.client_name + " Brand Hub"}
+            sandbox="allow-same-origin allow-scripts allow-popups allow-top-navigation"
+          />
+        </div>
+      );
+    }
+    /* Gamma fallback: link card + minimal BrandSite */
+    if (client.gamma_site_url) {
+      return (
+        <div className="min-h-screen">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 text-center">
+            <p className="text-sm text-gray-500 mb-2">{client.client_name} 브랜드 허브</p>
+            <a href={client.gamma_site_url} target="_blank" rel="noopener noreferrer"
+              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
+              브랜드 페이지 보기 →
+            </a>
+          </div>
+          <BrandSite client={client} brandConfig={brandConfig} faqs={faqs} commentary={commentary} products={products} />
+        </div>
+      );
+    }
+    /* No gamma content yet → show BrandSite as fallback */
+    return <BrandSite client={client} brandConfig={brandConfig} faqs={faqs} commentary={commentary} products={products} />;
+  }
+
+  /* Brandhub mode: self-rendered React brand site (post-contract, customizable) */
   return <BrandSite client={client} brandConfig={brandConfig} faqs={faqs} commentary={commentary} products={products} />;
 }
