@@ -123,12 +123,39 @@ function DashboardTab() {
 function PartnersTab() {
   const [rows, setRows] = useState<Array<Record<string, string>>>([]);
   const [ld, setLd] = useState(true);
-  useEffect(() => { sq("gp_geobh_hub_config?select=hub_slug,brand_name,brand_description,primary_color&order=hub_slug").then(d => { setRows(d); setLd(false); }); }, []);
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [pf, setPf] = useState({ hub_slug: "", brand_name: "", brand_description: "", primary_color: "#3B82F6" });
+  const load = () => sq("gp_geobh_hub_config?select=hub_slug,brand_name,brand_description,primary_color&order=hub_slug").then(d => { setRows(d); setLd(false); });
+  useEffect(() => { load(); }, []);
+  const handleAddPartner = async () => {
+    if (!pf.hub_slug || !pf.brand_name) return;
+    setSaving(true);
+    try {
+      await fetch(SB + "/rest/v1/gp_geobh_hub_config", { method: "POST", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ ...pf, hub_enabled: true, site_domain: "https://" + pf.hub_slug + ".bmp.ai" }) });
+      setPf({ hub_slug: "", brand_name: "", brand_description: "", primary_color: "#3B82F6" }); setShowAdd(false); load();
+    } catch (_) {} finally { setSaving(false); }
+  };
   return (<div>
     <div className="flex items-center justify-between mb-4">
       <h2 className="font-bold text-gray-900">파트너 관리 ({rows.length})</h2>
-      <button className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 opacity-50 cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> 파트너 추가 (준비 중)</button>
+      <button onClick={()=>setShowAdd(!showAdd)} className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 hover:bg-gray-800"><Plus className="w-3.5 h-3.5" /> 파트너 추가</button>
     </div>
+    {showAdd && (
+      <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-4 mb-4 space-y-3">
+        <div className="grid grid-cols-4 gap-3">
+          <div><label className="block text-xs text-gray-500 mb-1">슬러그*</label><input value={pf.hub_slug} onChange={e=>setPf({...pf,hub_slug:e.target.value})} placeholder="partnername" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">브랜드명*</label><input value={pf.brand_name} onChange={e=>setPf({...pf,brand_name:e.target.value})} placeholder="파트너명" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">설명</label><input value={pf.brand_description} onChange={e=>setPf({...pf,brand_description:e.target.value})} placeholder="한줄 설명" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">색상</label><input type="color" value={pf.primary_color} onChange={e=>setPf({...pf,primary_color:e.target.value})} className="h-9 w-full border rounded-lg cursor-pointer" /></div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={()=>setShowAdd(false)} className="px-3 py-1.5 text-sm text-gray-600 border rounded-lg">취소</button>
+          <button onClick={handleAddPartner} disabled={saving||!pf.hub_slug||!pf.brand_name} className="px-4 py-1.5 text-sm text-white bg-blue-600 rounded-lg disabled:opacity-50">{saving?"저장 중...":"저장"}</button>
+        </div>
+      </div>
+    )}
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       {ld ? <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div> : (
         <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50">
@@ -153,27 +180,76 @@ function PartnersTab() {
 function ClientsTab() {
   const [rows, setRows] = useState<Array<Record<string, string>>>([]);
   const [ld, setLd] = useState(true);
-  useEffect(() => { sq("bmp_partner_clients?select=partner_slug,client_slug,client_name,client_url,client_industry,status&order=partner_slug,client_slug").then(d => { setRows(d); setLd(false); }); }, []);
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ partner_slug: "", client_slug: "", client_name: "", client_url: "", client_industry: "" });
+  const [editSlug, setEditSlug] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const load = () => sq("bmp_partner_clients?select=partner_slug,client_slug,client_name,client_url,client_industry,status,site_mode&order=partner_slug,client_slug").then(d => { setRows(d); setLd(false); });
+  useEffect(() => { load(); }, []);
+  const handleAdd = async () => {
+    if (!form.partner_slug || !form.client_slug || !form.client_name) return;
+    setSaving(true);
+    try {
+      await fetch(SB + "/rest/v1/bmp_partner_clients", { method: "POST", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ ...form, status: "active", site_mode: "disabled" }) });
+      setForm({ partner_slug: "", client_slug: "", client_name: "", client_url: "", client_industry: "" });
+      setShowAdd(false); load();
+    } catch (_) {} finally { setSaving(false); }
+  };
+  const handleEdit = async (slug: string) => {
+    setSaving(true);
+    try {
+      await fetch(SB + "/rest/v1/bmp_partner_clients?client_slug=eq." + slug + "&status=eq.active", { method: "PATCH", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ client_name: editForm.client_name, client_url: editForm.client_url, client_industry: editForm.client_industry, updated_at: new Date().toISOString() }) });
+      setEditSlug(null); load();
+    } catch (_) {} finally { setSaving(false); }
+  };
+  const handleToggle = async (slug: string, current: string) => {
+    const next = current === "active" ? "inactive" : "active";
+    await fetch(SB + "/rest/v1/bmp_partner_clients?client_slug=eq." + slug, { method: "PATCH", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ status: next, updated_at: new Date().toISOString() }) });
+    load();
+  };
   return (<div>
     <div className="flex items-center justify-between mb-4">
-      <h2 className="font-bold text-gray-900">고객 관리 ({rows.length}개)</h2>
-      <button className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 opacity-50 cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> 고객 배정 (준비 중)</button>
+      <h2 className="font-bold text-gray-900">고객 관리 ({rows.length})</h2>
+      <button onClick={() => setShowAdd(!showAdd)} className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 hover:bg-gray-800"><Plus className="w-3.5 h-3.5" /> 고객 추가</button>
     </div>
+    {showAdd && (
+      <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-4 mb-4 space-y-3">
+        <div className="grid grid-cols-5 gap-3">
+          <div><label className="block text-xs text-gray-500 mb-1">파트너*</label><input value={form.partner_slug} onChange={e=>setForm({...form,partner_slug:e.target.value})} placeholder="hahmshout" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">슬러그*</label><input value={form.client_slug} onChange={e=>setForm({...form,client_slug:e.target.value})} placeholder="brandname" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">고객명*</label><input value={form.client_name} onChange={e=>setForm({...form,client_name:e.target.value})} placeholder="브랜드명" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">URL</label><input value={form.client_url} onChange={e=>setForm({...form,client_url:e.target.value})} placeholder="https://..." className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">업종</label><input value={form.client_industry} onChange={e=>setForm({...form,client_industry:e.target.value})} placeholder="패션" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={()=>setShowAdd(false)} className="px-3 py-1.5 text-sm text-gray-600 border rounded-lg">취소</button>
+          <button onClick={handleAdd} disabled={saving||!form.partner_slug||!form.client_slug||!form.client_name} className="px-4 py-1.5 text-sm text-white bg-blue-600 rounded-lg disabled:opacity-50">{saving?"저장 중...":"저장"}</button>
+        </div>
+      </div>
+    )}
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       {ld ? <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div> : (
         <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50">
-          <th className="text-left py-2.5 px-4 text-xs text-gray-500">파트너</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">고객사</th>
+          <th className="text-left py-2.5 px-4 text-xs text-gray-500">파트너</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">고객명</th>
           <th className="text-left py-2.5 px-4 text-xs text-gray-500">URL</th><th className="text-left py-2.5 px-4 text-xs text-gray-500">업종</th>
-          <th className="text-left py-2.5 px-4 text-xs text-gray-500">상태</th>
-        </tr></thead><tbody>{rows.map(r => (
-          <tr key={r.partner_slug + r.client_slug} className="border-b border-gray-50 hover:bg-blue-50/30">
+          <th className="text-center py-2.5 px-4 text-xs text-gray-500">모드</th><th className="text-center py-2.5 px-4 text-xs text-gray-500">상태</th>
+          <th className="text-center py-2.5 px-4 text-xs text-gray-500">액션</th>
+        </tr></thead><tbody>{rows.map(r => {
+          const isEdit = editSlug === r.client_slug;
+          return (<tr key={r.partner_slug+r.client_slug} className="border-b border-gray-50 hover:bg-blue-50/30">
             <td className="py-3 px-4"><span className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">{r.partner_slug}</span></td>
-            <td className="py-3 px-4 font-medium text-gray-900">{r.client_name}</td>
-            <td className="py-3 px-4 text-xs text-gray-400 max-w-[200px] truncate">{r.client_url || "—"}</td>
-            <td className="py-3 px-4 text-xs text-gray-500">{r.client_industry || "—"}</td>
-            <td className="py-3 px-4"><span className={"px-2 py-0.5 rounded-full text-xs " + (r.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600")}>{r.status}</span></td>
-          </tr>
-        ))}</tbody></table>
+            <td className="py-3 px-4">{isEdit?<input value={editForm.client_name} onChange={e=>setEditForm({...editForm,client_name:e.target.value})} className="w-full px-2 py-1 border rounded text-sm"/>:<span className="font-medium text-gray-900">{r.client_name}</span>}</td>
+            <td className="py-3 px-4">{isEdit?<input value={editForm.client_url} onChange={e=>setEditForm({...editForm,client_url:e.target.value})} className="w-full px-2 py-1 border rounded text-sm"/>:<span className="text-xs text-gray-400 max-w-[180px] truncate block">{r.client_url||"—"}</span>}</td>
+            <td className="py-3 px-4">{isEdit?<input value={editForm.client_industry} onChange={e=>setEditForm({...editForm,client_industry:e.target.value})} className="w-full px-2 py-1 border rounded text-sm"/>:<span className="text-xs text-gray-500">{r.client_industry||"—"}</span>}</td>
+            <td className="py-3 px-4 text-center"><span className={"px-1.5 py-0.5 rounded text-[10px] "+(r.site_mode==="brandhub"?"bg-blue-50 text-blue-600":r.site_mode==="gamma"?"bg-amber-50 text-amber-600":"bg-gray-50 text-gray-400")}>{r.site_mode||"—"}</span></td>
+            <td className="py-3 px-4 text-center"><button onClick={()=>handleToggle(r.client_slug,r.status)} className={"px-2 py-0.5 rounded-full text-xs cursor-pointer "+(r.status==="active"?"bg-green-50 text-green-700 hover:bg-green-100":"bg-gray-100 text-gray-500 hover:bg-gray-200")}>{r.status}</button></td>
+            <td className="py-3 px-4 text-center">{isEdit?(<span className="flex gap-1 justify-center"><button onClick={()=>handleEdit(r.client_slug)} className="text-xs text-blue-600 hover:underline">저장</button><button onClick={()=>setEditSlug(null)} className="text-xs text-gray-400 hover:underline">취소</button></span>):(<button onClick={()=>{setEditSlug(r.client_slug);setEditForm({client_name:r.client_name,client_url:r.client_url||"",client_industry:r.client_industry||""});}} className="text-xs text-gray-400 hover:text-blue-600">편집</button>)}</td>
+          </tr>);
+        })}</tbody></table>
       )}
     </div>
   </div>);
@@ -183,12 +259,43 @@ function ClientsTab() {
 function AccountsTab() {
   const [rows, setRows] = useState<Array<Record<string, string | boolean>>>([]);
   const [ld, setLd] = useState(true);
-  useEffect(() => { sq("bmp_user_roles?select=email,display_name,role,partner_slug,is_active&order=role,partner_slug,email").then(d => { setRows(d); setLd(false); }); }, []);
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [af, setAf] = useState({ email: "", display_name: "", role: "viewer", partner_slug: "" });
+  const load = () => sq("bmp_user_roles?select=email,display_name,role,partner_slug,is_active&order=role,partner_slug,email").then(d => { setRows(d); setLd(false); });
+  useEffect(() => { load(); }, []);
+  const handleAddAccount = async () => {
+    if (!af.email || !af.role) return; setSaving(true);
+    try {
+      await fetch(SB + "/rest/v1/bmp_user_roles", { method: "POST", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ ...af, partner_slug: af.partner_slug || null, is_active: true }) });
+      setAf({ email: "", display_name: "", role: "viewer", partner_slug: "" }); setShowAdd(false); load();
+    } catch (_) {} finally { setSaving(false); }
+  };
+  const toggleActive = async (email: string, current: boolean) => {
+    await fetch(SB + "/rest/v1/bmp_user_roles?email=eq." + encodeURIComponent(email), { method: "PATCH", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ is_active: !current }) });
+    load();
+  };
   return (<div>
     <div className="flex items-center justify-between mb-4">
       <h2 className="font-bold text-gray-900">계정/권한 ({rows.length})</h2>
-      <button className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 opacity-50 cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> 계정 추가 (준비 중)</button>
+      <button onClick={()=>setShowAdd(!showAdd)} className="px-3 py-1.5 text-sm text-white bg-gray-900 rounded-lg flex items-center gap-1.5 hover:bg-gray-800"><Plus className="w-3.5 h-3.5" /> 계정 추가</button>
     </div>
+    {showAdd && (
+      <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-4 mb-4 space-y-3">
+        <div className="grid grid-cols-4 gap-3">
+          <div><label className="block text-xs text-gray-500 mb-1">이메일*</label><input value={af.email} onChange={e=>setAf({...af,email:e.target.value})} placeholder="user@example.com" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">이름</label><input value={af.display_name} onChange={e=>setAf({...af,display_name:e.target.value})} placeholder="홍길동" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">역할*</label><select value={af.role} onChange={e=>setAf({...af,role:e.target.value})} className="w-full px-3 py-1.5 border rounded-lg text-sm"><option value="admin">admin</option><option value="editor">editor</option><option value="viewer">viewer</option></select></div>
+          <div><label className="block text-xs text-gray-500 mb-1">파트너</label><input value={af.partner_slug} onChange={e=>setAf({...af,partner_slug:e.target.value})} placeholder="(내부=빈칸)" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={()=>setShowAdd(false)} className="px-3 py-1.5 text-sm text-gray-600 border rounded-lg">취소</button>
+          <button onClick={handleAddAccount} disabled={saving||!af.email} className="px-4 py-1.5 text-sm text-white bg-blue-600 rounded-lg disabled:opacity-50">{saving?"저장 중...":"저장"}</button>
+        </div>
+      </div>
+    )}
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       {ld ? <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /></div> : (
         <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50/50">
@@ -201,7 +308,7 @@ function AccountsTab() {
             <td className="py-3 px-4 text-gray-900">{String(r.display_name || "—")}</td>
             <td className="py-3 px-4"><span className={"px-2 py-0.5 rounded-full text-xs font-medium " + (r.role === "admin" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-700")}>{String(r.role)}</span></td>
             <td className="py-3 px-4 text-xs text-gray-500">{String(r.partner_slug || "— (내부)")}</td>
-            <td className="py-3 px-4 text-center">{r.is_active ? <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> : <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />}</td>
+            <td className="py-3 px-4 text-center"><button onClick={()=>toggleActive(String(r.email),!!r.is_active)} className="cursor-pointer" title={r.is_active?"비활성화":"활성화"}>{r.is_active ? <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block hover:bg-green-600" /> : <span className="w-2.5 h-2.5 rounded-full bg-gray-300 inline-block hover:bg-gray-400" />}</button></td>
           </tr>
         ))}</tbody></table>
       )}
