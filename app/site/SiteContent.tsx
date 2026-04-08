@@ -26,6 +26,7 @@ interface BrandConfig {
 }
 
 interface FaqItem { question: string; answer: string; }
+interface ProductItem { url: string; name: string; image: string | null; price: string | null; }
 
 /* ── helpers ── */
 function getSlugFromHost(): string | null {
@@ -41,12 +42,13 @@ function getSlugFromHost(): string | null {
 
 /* ── BrandSite: method 1 — self-rendered consumer brand page ── */
 function BrandSite({
-  client, brandConfig, faqs, commentary,
+  client, brandConfig, faqs, commentary, products,
 }: {
   client: ClientData;
   brandConfig: BrandConfig | null;
   faqs: FaqItem[];
   commentary: string | null;
+  products: ProductItem[];
 }) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const brandName = client.client_name;
@@ -68,6 +70,7 @@ function BrandSite({
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-gray-600">
             <a href="#about" className="hover:text-gray-900">소개</a>
+            {products.length > 0 && <a href="#products" className="hover:text-gray-900">제품</a>}
             {faqs.length > 0 && <a href="#faq" className="hover:text-gray-900">FAQ</a>}
             <a href="#contact" className="hover:text-gray-900">문의</a>
             {siteUrl && (
@@ -113,6 +116,36 @@ function BrandSite({
           )}
         </div>
       </section>
+
+      {/* Products */}
+      {products.length > 0 && (
+        <section id="products" className="py-20 px-6 bg-gray-50">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-3xl font-bold mb-8 text-center">Products</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {products.map((p, i) => (
+                <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
+                  className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all hover:-translate-y-1">
+                  {p.image ? (
+                    <div className="aspect-[3/4] overflow-hidden">
+                      <img src={p.image} alt={p.name} loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    </div>
+                  ) : (
+                    <div className="aspect-[3/4] bg-gray-100 flex items-center justify-center">
+                      <span className="text-gray-300 text-4xl">📷</span>
+                    </div>
+                  )}
+                  <div className="p-3">
+                    <h3 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">{p.name}</h3>
+                    {p.price && <p className="text-sm font-bold" style={{ color: primaryColor }}>{p.price}</p>}
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* FAQ */}
       {faqs.length > 0 && (
@@ -181,6 +214,7 @@ export default function SiteContent() {
   const [client, setClient] = useState<ClientData | null>(null);
   const [brandConfig, setBrandConfig] = useState<BrandConfig | null>(null);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
   const [commentary, setCommentary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -228,12 +262,14 @@ export default function SiteContent() {
             return Promise.all([
               fetch(BAWEE_EF + "/geobh-data?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
               fetch(BAWEE_EF + "/geobh-ai-commentary?slug=" + s + "&tab=overview").then((r) => r.ok ? r.json() : null).catch(() => null),
-            ]).then(([brand, comm]) => {
+              fetch(BAWEE_EF + "/geobh-products?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
+            ]).then(([brand, comm, prods]) => {
               if (brand?.config) setBrandConfig(brand.config);
               if (brand?.faqs) setFaqs(brand.faqs.filter((f: any) => f.question && f.answer).slice(0, 8));
               const raw = comm?.commentary;
               const txt = typeof raw === "string" ? raw : raw?.claude || raw?.gpt || null;
               if (txt) setCommentary(txt.length > 1200 ? txt.slice(0, 1200) + "..." : txt);
+              if (prods?.products) setProducts(prods.products);
             }).finally(() => setLoading(false));
           })
           .catch(() => setLoading(false));
@@ -290,5 +326,5 @@ export default function SiteContent() {
   }
 
   /* Method 1: Self-rendered brand site (brandhub mode) */
-  return <BrandSite client={client} brandConfig={brandConfig} faqs={faqs} commentary={commentary} />;
+  return <BrandSite client={client} brandConfig={brandConfig} faqs={faqs} commentary={commentary} products={products} />;
 }
