@@ -184,7 +184,7 @@ export default function SiteContent() {
   const [commentary, setCommentary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [storageUrl, setStorageUrl] = useState<string | null>(null);
+  const [storageHtml, setStorageHtml] = useState<string | null>(null);
 
   useEffect(() => {
     const s = searchParams.get("slug") || getSlugFromHost();
@@ -213,10 +213,14 @@ export default function SiteContent() {
 
         /* Check if brandhub-sites Storage has HTML for this slug */
         const hubHtmlUrl = SUPABASE_URL + "/storage/v1/object/public/brandhub-sites/" + s + "/index.html";
-        fetch(hubHtmlUrl, { method: "HEAD" })
+        fetch(hubHtmlUrl)
           .then((r) => {
-            if (r.ok) {
-              setStorageUrl(hubHtmlUrl);
+            if (r.ok) return r.text();
+            return null;
+          })
+          .then((html) => {
+            if (html && html.startsWith("<!DOCTYPE") || html && html.startsWith("<html")) {
+              setStorageHtml(html);
               setLoading(false);
               return;
             }
@@ -255,14 +259,15 @@ export default function SiteContent() {
   }
 
   /* Storage HTML (brandhub-sites) — highest priority */
-  if (storageUrl) {
+  if (storageHtml) {
     return (
       <div className="min-h-screen">
         <iframe
-          src={storageUrl}
+          srcDoc={storageHtml}
           className="w-full border-0"
           style={{ height: "100vh", minHeight: "100vh" }}
           title={client.client_name + " Brand Hub"}
+          sandbox="allow-same-origin allow-scripts allow-popups allow-top-navigation"
         />
       </div>
     );
