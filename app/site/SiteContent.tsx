@@ -36,33 +36,8 @@ function getSlugFromHost(): string | null {
   return null;
 }
 
-/* ── GammaEmbed: method 2 — iframe ── */
-function GammaEmbed({ url, brandName }: { url: string; brandName: string }) {
-  const [loaded, setLoaded] = useState(false);
-  return (
-    <div className="min-h-screen relative">
-      {!loaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 z-10">
-          <div className="text-center">
-            <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-sm text-gray-500">{brandName} 로딩 중...</p>
-          </div>
-        </div>
-      )}
-      <iframe
-        src={url}
-        className="w-full border-0"
-        style={{ height: "100vh", minHeight: "100vh" }}
-        onLoad={() => setLoaded(true)}
-        title={brandName + " Brand Hub"}
-        allow="clipboard-write"
-      />
-      <div className="bg-gray-900 py-3 px-6 text-center">
-        <span className="text-xs text-gray-500">Powered by <a href="https://bmp.ai" className="text-blue-400 hover:underline">bmp.ai</a></span>
-      </div>
-    </div>
-  );
-}
+/* ── GammaEmbed: iframe blocked by Gamma → show brand page + link card ── */
+/* Gamma blocks iframe embedding, so gamma mode now renders BrandSite + link */
 
 /* ── BrandSite: method 1 — self-rendered consumer brand page ── */
 function BrandSite({
@@ -209,6 +184,7 @@ export default function SiteContent() {
   const [commentary, setCommentary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [storageUrl, setStorageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const s = searchParams.get("slug") || getSlugFromHost();
@@ -224,10 +200,9 @@ export default function SiteContent() {
         const c = data[0] as ClientData;
         setClient(c);
 
-        /* gamma mode: just show iframe, no extra data needed */
+        /* gamma mode: also render self, just store gamma URL for link */
         if (c.site_mode === "gamma" && c.gamma_site_url) {
-          setLoading(false);
-          return;
+          /* fall through to check storage */
         }
 
         /* disabled mode: show coming-soon */
@@ -236,17 +211,28 @@ export default function SiteContent() {
           return;
         }
 
-        /* brandhub (self) mode: fetch brand data for consumer page */
-        Promise.all([
-          fetch(BAWEE_EF + "/geobh-data?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
-          fetch(BAWEE_EF + "/geobh-ai-commentary?slug=" + s + "&tab=overview").then((r) => r.ok ? r.json() : null).catch(() => null),
-        ]).then(([brand, comm]) => {
-          if (brand?.config) setBrandConfig(brand.config);
-          if (brand?.faqs) setFaqs(brand.faqs.filter((f: any) => f.question && f.answer).slice(0, 8));
-          const raw = comm?.commentary;
-          const txt = typeof raw === "string" ? raw : raw?.claude || raw?.gpt || null;
-          if (txt) setCommentary(txt.length > 1200 ? txt.slice(0, 1200) + "..." : txt);
-        }).finally(() => setLoading(false));
+        /* Check if brandhub-sites Storage has HTML for this slug */
+        const hubHtmlUrl = SUPABASE_URL + "/storage/v1/object/public/brandhub-sites/" + s + "/index.html";
+        fetch(hubHtmlUrl, { method: "HEAD" })
+          .then((r) => {
+            if (r.ok) {
+              setStorageUrl(hubHtmlUrl);
+              setLoading(false);
+              return;
+            }
+            /* No storage HTML → fetch brand data for React rendering */
+            return Promise.all([
+              fetch(BAWEE_EF + "/geobh-data?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
+              fetch(BAWEE_EF + "/geobh-ai-commentary?slug=" + s + "&tab=overview").then((r) => r.ok ? r.json() : null).catch(() => null),
+            ]).then(([brand, comm]) => {
+              if (brand?.config) setBrandConfig(brand.config);
+              if (brand?.faqs) setFaqs(brand.faqs.filter((f: any) => f.question && f.answer).slice(0, 8));
+              const raw = comm?.commentary;
+              const txt = typeof raw === "string" ? raw : raw?.claude || raw?.gpt || null;
+              if (txt) setCommentary(txt.length > 1200 ? txt.slice(0, 1200) + "..." : txt);
+            }).finally(() => setLoading(false));
+          })
+          .catch(() => setLoading(false));
       })
       .catch(() => { setError("fetch-error"); setLoading(false); });
   }, [searchParams]);
@@ -268,9 +254,18 @@ export default function SiteContent() {
     );
   }
 
-  /* Method 2: Gamma iframe */
-  if (client.site_mode === "gamma" && client.gamma_site_url) {
-    return <GammaEmbed url={client.gamma_site_url} brandName={client.client_name} />;
+  /* Storage HTML (brandhub-sites) — highest priority */
+  if (storageUrl) {
+    return (
+      <div className="min-h-screen">
+        <iframe
+          src={storageUrl}
+          className="w-full border-0"
+          style={{ height: "100vh", minHeight: "100vh" }}
+          title={client.client_name + " Brand Hub"}
+        />
+      </div>
+    );
   }
 
   /* Disabled: coming soon */
