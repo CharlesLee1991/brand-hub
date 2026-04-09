@@ -191,7 +191,7 @@ function ClientsTab() {
     if (!form.partner_slug || !form.client_slug || !form.client_name) return;
     setSaving(true);
     try {
-      await fetch(SB + "/rest/v1/bmp_partner_clients", { method: "POST", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      await fetch(SUPA + "/rest/v1/bmp_partner_clients", { method: "POST", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({ ...form, status: "active", site_mode: "disabled" }) });
       setForm({ partner_slug: "", client_slug: "", client_name: "", client_url: "", client_industry: "" });
       setShowAdd(false); load();
@@ -200,14 +200,14 @@ function ClientsTab() {
   const handleEdit = async (slug: string) => {
     setSaving(true);
     try {
-      await fetch(SB + "/rest/v1/bmp_partner_clients?client_slug=eq." + slug + "&status=eq.active", { method: "PATCH", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      await fetch(SUPA + "/rest/v1/bmp_partner_clients?client_slug=eq." + slug + "&status=eq.active", { method: "PATCH", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({ client_name: editForm.client_name, client_url: editForm.client_url, client_industry: editForm.client_industry, updated_at: new Date().toISOString() }) });
       setEditSlug(null); load();
     } catch (_) {} finally { setSaving(false); }
   };
   const handleToggle = async (slug: string, current: string) => {
     const next = current === "active" ? "inactive" : "active";
-    await fetch(SB + "/rest/v1/bmp_partner_clients?client_slug=eq." + slug, { method: "PATCH", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+    await fetch(SUPA + "/rest/v1/bmp_partner_clients?client_slug=eq." + slug, { method: "PATCH", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json", Prefer: "return=minimal" },
       body: JSON.stringify({ status: next, updated_at: new Date().toISOString() }) });
     load();
   };
@@ -267,13 +267,13 @@ function AccountsTab() {
   const handleAddAccount = async () => {
     if (!af.email || !af.role) return; setSaving(true);
     try {
-      await fetch(SB + "/rest/v1/bmp_user_roles", { method: "POST", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      await fetch(SUPA + "/rest/v1/bmp_user_roles", { method: "POST", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({ ...af, partner_slug: af.partner_slug || null, is_active: true }) });
       setAf({ email: "", display_name: "", role: "viewer", partner_slug: "" }); setShowAdd(false); load();
     } catch (_) {} finally { setSaving(false); }
   };
   const toggleActive = async (email: string, current: boolean) => {
-    await fetch(SB + "/rest/v1/bmp_user_roles?email=eq." + encodeURIComponent(email), { method: "PATCH", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+    await fetch(SUPA + "/rest/v1/bmp_user_roles?email=eq." + encodeURIComponent(email), { method: "PATCH", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json", Prefer: "return=minimal" },
       body: JSON.stringify({ is_active: !current }) });
     load();
   };
