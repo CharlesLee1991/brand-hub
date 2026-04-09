@@ -28,6 +28,24 @@ interface BrandConfig {
 interface FaqItem { question: string; answer: string; }
 interface ProductItem { url: string; name: string; image: string | null; price: string | null; }
 
+interface PartnerHubConfig {
+  hub_slug: string;
+  brand_name: string;
+  brand_description: string | null;
+  primary_color: string | null;
+  logo_url: string | null;
+  site_domain: string | null;
+}
+
+interface PartnerClient {
+  client_slug: string;
+  client_name: string;
+  client_url: string | null;
+  client_industry: string | null;
+  status: string;
+  diagnosis_status: string | null;
+}
+
 /* ── helpers ── */
 function getSlugFromHost(): string | null {
   if (typeof window === "undefined") return null;
@@ -37,8 +55,166 @@ function getSlugFromHost(): string | null {
   return null;
 }
 
-/* ── GammaEmbed: iframe blocked by Gamma → show brand page + link card ── */
-/* Gamma blocks iframe embedding, so gamma mode now renders BrandSite + link */
+/* ── PartnerLanding: partner hub page showing their clients ── */
+function PartnerLanding({
+  config, clients,
+}: {
+  config: PartnerHubConfig;
+  clients: PartnerClient[];
+}) {
+  const primaryColor = config.primary_color || "#3B82F6";
+  const logoUrl = config.logo_url;
+  const brandName = config.brand_name;
+  const activeClients = clients.filter(c => c.status === "active");
+
+  return (
+    <div className="min-h-screen bg-white text-gray-900">
+      {/* Nav */}
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur border-b border-gray-100 z-50">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {logoUrl
+              ? <img src={logoUrl} alt={brandName} className="h-8 w-auto" />
+              : <span className="text-xl font-bold" style={{ color: primaryColor }}>{brandName}</span>}
+          </div>
+          <div className="hidden md:flex items-center gap-6 text-sm text-gray-600">
+            <a href="#clients" className="hover:text-gray-900">관리 브랜드</a>
+            <a href="#about" className="hover:text-gray-900">소개</a>
+            {config.site_domain && (
+              <a href={config.site_domain} target="_blank" rel="noopener noreferrer"
+                className="px-4 py-1.5 rounded-full text-white text-xs font-medium"
+                style={{ backgroundColor: primaryColor }}>공식 사이트</a>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      <section className="pt-32 pb-20 px-6"
+        style={{ background: "linear-gradient(135deg, " + primaryColor + "08, " + primaryColor + "15)" }}>
+        <div className="max-w-4xl mx-auto text-center">
+          {logoUrl && <img src={logoUrl} alt={brandName} className="h-16 mx-auto mb-6" />}
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">{brandName}</h1>
+          <p className="text-lg text-gray-500 mb-2">GEOcare.AI 공식 파트너</p>
+          {config.brand_description && (
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed mt-4">{config.brand_description}</p>
+          )}
+          <div className="flex justify-center gap-6 mt-8">
+            <div className="bg-white rounded-xl px-6 py-3 shadow-sm">
+              <p className="text-2xl font-bold" style={{ color: primaryColor }}>{activeClients.length}</p>
+              <p className="text-xs text-gray-500">관리 브랜드</p>
+            </div>
+            <div className="bg-white rounded-xl px-6 py-3 shadow-sm">
+              <p className="text-2xl font-bold text-green-600">
+                {activeClients.filter(c => c.diagnosis_status === "complete").length}
+              </p>
+              <p className="text-xs text-gray-500">GEO 진단 완료</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Clients */}
+      <section id="clients" className="py-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-3xl font-bold mb-3 text-center">관리 브랜드</h2>
+          <p className="text-gray-500 text-center mb-12">GEO 최적화를 진행 중인 브랜드입니다</p>
+          {activeClients.length === 0 ? (
+            <p className="text-center text-gray-400">등록된 브랜드가 없습니다.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {activeClients.map((c) => (
+                <div key={c.client_slug}
+                  className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-4">
+                    <h3 className="text-lg font-bold">{c.client_name}</h3>
+                    <span className={
+                      "text-xs px-2 py-1 rounded-full font-medium " +
+                      (c.diagnosis_status === "complete"
+                        ? "bg-green-50 text-green-700"
+                        : c.diagnosis_status === "pending"
+                        ? "bg-yellow-50 text-yellow-700"
+                        : "bg-gray-50 text-gray-500")
+                    }>
+                      {c.diagnosis_status === "complete" ? "진단완료" :
+                       c.diagnosis_status === "pending" ? "진단중" : "대기"}
+                    </span>
+                  </div>
+                  {c.client_industry && (
+                    <p className="text-sm text-gray-500 mb-3">{c.client_industry}</p>
+                  )}
+                  {c.client_url && (
+                    <a href={c.client_url} target="_blank" rel="noopener noreferrer"
+                      className="text-sm hover:underline" style={{ color: primaryColor }}>
+                      {c.client_url.replace(/^https?:\/\//, "").replace(/\/$/, "")} →
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* About */}
+      <section id="about" className="py-20 px-6 bg-gray-50">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-8">파트너 소개</h2>
+          <p className="text-lg text-gray-600 leading-relaxed">
+            {brandName}는 GEOcare.AI 공인 파트너로서,
+            AI 검색 최적화(GEO) 전략 수립부터 실행까지 전 과정을 지원합니다.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <div className="text-3xl mb-3">🔍</div>
+              <h3 className="font-bold mb-2">GEO 진단</h3>
+              <p className="text-sm text-gray-500">AI 검색 노출 현황 분석 및 개선점 도출</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <div className="text-3xl mb-3">📊</div>
+              <h3 className="font-bold mb-2">SoM 분석</h3>
+              <p className="text-sm text-gray-500">AI 검색 점유율 모니터링 및 경쟁 분석</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <div className="text-3xl mb-3">🚀</div>
+              <h3 className="font-bold mb-2">최적화 실행</h3>
+              <p className="text-sm text-gray-500">E-E-A-T 강화, 구조화 데이터, 콘텐츠 전략</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-20 px-6"
+        style={{ background: "linear-gradient(135deg, " + primaryColor + ", " + primaryColor + "cc)" }}>
+        <div className="max-w-4xl mx-auto text-center text-white">
+          <h2 className="text-3xl font-bold mb-4">AI 검색 최적화, 지금 시작하세요</h2>
+          <p className="text-lg mb-8 opacity-90">
+            {brandName}와 함께 AI 검색에서 브랜드 인용률을 높이세요.
+          </p>
+          <a href="https://geocare.ai" target="_blank" rel="noopener noreferrer"
+            className="inline-block px-8 py-3 bg-white font-bold rounded-lg hover:bg-gray-100 transition-colors"
+            style={{ color: primaryColor }}>
+            GEOcare.AI 바로가기
+          </a>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-8 px-6 bg-gray-900 text-gray-400">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white">{brandName}</span>
+            <span className="text-xs">· GEOcare.AI Partner</span>
+          </div>
+          <div className="text-xs text-center">
+            Powered by <a href="https://bmp.ai" className="text-blue-400 hover:underline">bmp.ai</a> · © 2026 BizSpring Inc.
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
 
 /* ── BrandSite: method 1 — self-rendered consumer brand page ── */
 function BrandSite({
@@ -219,63 +395,96 @@ export default function SiteContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [storageHtml, setStorageHtml] = useState<string | null>(null);
+  /* Partner hub state */
+  const [partnerConfig, setPartnerConfig] = useState<PartnerHubConfig | null>(null);
+  const [partnerClients, setPartnerClients] = useState<PartnerClient[]>([]);
+  const [isPartnerHub, setIsPartnerHub] = useState(false);
 
   useEffect(() => {
     const s = searchParams.get("slug") || getSlugFromHost();
     setSlug(s);
     if (!s) { setError("no-slug"); setLoading(false); return; }
 
+    /* Step 1: Try client lookup */
     fetch(SUPABASE_URL + "/rest/v1/bmp_partner_clients?client_slug=eq." + s + "&status=eq.active&select=client_name,client_slug,client_url,client_industry,site_mode,gamma_site_url&limit=1", {
       headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON },
     })
       .then((r) => r.json())
       .then((data) => {
-        if (!data?.[0]) { setError("not-found"); setLoading(false); return; }
-        const c = data[0] as ClientData;
-        setClient(c);
-
-        /* gamma mode: also render self, just store gamma URL for link */
-        if (c.site_mode === "gamma" && c.gamma_site_url) {
-          /* fall through to check storage */
-        }
-
-        /* disabled mode: show coming-soon */
-        if (c.site_mode === "disabled" || !c.site_mode) {
-          setLoading(false);
+        if (data?.[0]) {
+          /* Found as client → existing brand page flow */
+          const c = data[0] as ClientData;
+          setClient(c);
+          handleClientData(c, s);
           return;
         }
 
-        /* Check if brandhub-sites Storage has HTML for this slug */
-        const hubHtmlUrl = SUPABASE_URL + "/storage/v1/object/public/brandhub-sites/" + s + "/index.html";
-        fetch(hubHtmlUrl)
-          .then((r) => {
-            if (r.ok) return r.text();
-            return null;
-          })
-          .then((html) => {
-            if (html && html.startsWith("<!DOCTYPE") || html && html.startsWith("<html")) {
-              setStorageHtml(html);
+        /* Step 2: Not a client → try partner hub_config lookup */
+        fetch(SUPABASE_URL + "/rest/v1/gp_geobh_hub_config?hub_slug=eq." + s + "&hub_enabled=eq.true&select=hub_slug,brand_name,brand_description,primary_color,logo_url,site_domain&limit=1", {
+          headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON },
+        })
+          .then((r) => r.json())
+          .then((hubData) => {
+            if (!hubData?.[0]) {
+              setError("not-found");
               setLoading(false);
               return;
             }
-            /* No storage HTML → fetch brand data for React rendering */
-            return Promise.all([
-              fetch(BAWEE_EF + "/geobh-data?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
-              fetch(BAWEE_EF + "/geobh-ai-commentary?slug=" + s + "&tab=overview").then((r) => r.ok ? r.json() : null).catch(() => null),
-              fetch(BAWEE_EF + "/geobh-products?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
-            ]).then(([brand, comm, prods]) => {
-              if (brand?.config) setBrandConfig(brand.config);
-              if (brand?.faqs) setFaqs(brand.faqs.filter((f: any) => f.question && f.answer).slice(0, 8));
-              const raw = comm?.commentary;
-              const txt = typeof raw === "string" ? raw : raw?.claude || raw?.gpt || null;
-              if (txt) setCommentary(txt.length > 1200 ? txt.slice(0, 1200) + "..." : txt);
-              if (prods?.products) setProducts(prods.products);
-            }).finally(() => setLoading(false));
+            /* Found as partner → fetch partner's clients */
+            const hub = hubData[0] as PartnerHubConfig;
+            setPartnerConfig(hub);
+            setIsPartnerHub(true);
+
+            fetch(SUPABASE_URL + "/rest/v1/bmp_partner_clients?partner_slug=eq." + s + "&select=client_slug,client_name,client_url,client_industry,status,diagnosis_status", {
+              headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON },
+            })
+              .then((r) => r.json())
+              .then((cl) => { setPartnerClients(cl || []); setLoading(false); })
+              .catch(() => setLoading(false));
           })
-          .catch(() => setLoading(false));
+          .catch(() => { setError("not-found"); setLoading(false); });
       })
       .catch(() => { setError("fetch-error"); setLoading(false); });
   }, [searchParams]);
+
+  /* Handle client data (existing logic extracted) */
+  function handleClientData(c: ClientData, s: string) {
+    if (c.site_mode === "gamma" && c.gamma_site_url) {
+      /* fall through to check storage */
+    }
+
+    if (c.site_mode === "disabled" || !c.site_mode) {
+      setLoading(false);
+      return;
+    }
+
+    const hubHtmlUrl = SUPABASE_URL + "/storage/v1/object/public/brandhub-sites/" + s + "/index.html";
+    fetch(hubHtmlUrl)
+      .then((r) => {
+        if (r.ok) return r.text();
+        return null;
+      })
+      .then((html) => {
+        if (html && html.startsWith("<!DOCTYPE") || html && html.startsWith("<html")) {
+          setStorageHtml(html);
+          setLoading(false);
+          return;
+        }
+        return Promise.all([
+          fetch(BAWEE_EF + "/geobh-data?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetch(BAWEE_EF + "/geobh-ai-commentary?slug=" + s + "&tab=overview").then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetch(BAWEE_EF + "/geobh-products?slug=" + s).then((r) => r.ok ? r.json() : null).catch(() => null),
+        ]).then(([brand, comm, prods]) => {
+          if (brand?.config) setBrandConfig(brand.config);
+          if (brand?.faqs) setFaqs(brand.faqs.filter((f: any) => f.question && f.answer).slice(0, 8));
+          const raw = comm?.commentary;
+          const txt = typeof raw === "string" ? raw : raw?.claude || raw?.gpt || null;
+          if (txt) setCommentary(txt.length > 1200 ? txt.slice(0, 1200) + "..." : txt);
+          if (prods?.products) setProducts(prods.products);
+        }).finally(() => setLoading(false));
+      })
+      .catch(() => setLoading(false));
+  }
 
   /* ── Render ── */
   if (loading) {
@@ -286,7 +495,20 @@ export default function SiteContent() {
     );
   }
 
-  if (error || !client) {
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-400">페이지를 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  /* Partner Hub page */
+  if (isPartnerHub && partnerConfig) {
+    return <PartnerLanding config={partnerConfig} clients={partnerClients} />;
+  }
+
+  if (!client) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-400">페이지를 찾을 수 없습니다.</p>
@@ -325,7 +547,6 @@ export default function SiteContent() {
         </div>
       );
     }
-    /* Gamma fallback: link card + minimal BrandSite */
     if (client.gamma_site_url) {
       return (
         <div className="min-h-screen">
@@ -340,7 +561,6 @@ export default function SiteContent() {
         </div>
       );
     }
-    /* No gamma content yet → show BrandSite as fallback */
     return <BrandSite client={client} brandConfig={brandConfig} faqs={faqs} commentary={commentary} products={products} />;
   }
 
