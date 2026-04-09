@@ -132,7 +132,7 @@ function PartnersTab() {
     if (!pf.hub_slug || !pf.brand_name) return;
     setSaving(true);
     try {
-      await fetch(SB + "/rest/v1/gp_geobh_hub_config", { method: "POST", headers: { ...HD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      await fetch(SUPA + "/rest/v1/gp_geobh_hub_config", { method: "POST", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({ ...pf, hub_enabled: true, site_domain: "https://" + pf.hub_slug + ".bmp.ai" }) });
       setPf({ hub_slug: "", brand_name: "", brand_description: "", primary_color: "#3B82F6" }); setShowAdd(false); load();
     } catch (_) {} finally { setSaving(false); }
