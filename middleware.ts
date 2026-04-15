@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/demo", "/site"];
+const PUBLIC_PATHS = ["/login", "/demo", "/site", "/report"];
 
 // Supabase project ref (from URL: https://nntuztaehnywdbttrajy.supabase.co)
 const SB_REF = "nntuztaehnywdbttrajy";
@@ -48,7 +48,7 @@ export function middleware(req: NextRequest) {
   }
 
   // ── PUBLIC PATHS ──
-  const isPublic = PUBLIC_PATHS.includes(effectivePath);
+  const isPublic = PUBLIC_PATHS.some(p => effectivePath === p || effectivePath.startsWith(p + "/"));
 
   if (isPublic && !subdomain) return NextResponse.next();
 
