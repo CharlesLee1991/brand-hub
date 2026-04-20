@@ -10,10 +10,13 @@ export function middleware(req: NextRequest) {
   const host = req.headers.get("host") || "";
 
   // Skip static files, API routes, Next.js internals
+  // — /sitemap.xml 과 /robots.txt 는 예외: middleware가 subdomain rewrite 처리
   if (
     url.pathname.startsWith("/_next") ||
     url.pathname.startsWith("/api") ||
-    url.pathname.includes(".")
+    (url.pathname.includes(".") &&
+      url.pathname !== "/sitemap.xml" &&
+      url.pathname !== "/robots.txt")
   ) {
     return NextResponse.next();
   }
@@ -45,6 +48,12 @@ export function middleware(req: NextRequest) {
       const contentUrl = req.nextUrl.clone();
       contentUrl.pathname = "/" + subdomain + url.pathname;
       return NextResponse.rewrite(contentUrl);
+    }
+    // ── Axis 2 Phase C: /sitemap.xml, /robots.txt — 크롤러 발견성 공개 엔드포인트
+    if (url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt") {
+      const seoUrl = req.nextUrl.clone();
+      seoUrl.pathname = "/" + subdomain + url.pathname;
+      return NextResponse.rewrite(seoUrl);
     }
     // FIX: 이미 pathname이 /subdomain으로 시작하면 중복 prefix 추가하지 않음
     if (url.pathname.startsWith("/" + subdomain + "/") || url.pathname === "/" + subdomain) {
