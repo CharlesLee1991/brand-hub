@@ -39,6 +39,13 @@ export function middleware(req: NextRequest) {
       }
       return NextResponse.rewrite(loginUrl);
     }
+    // ── Axis 2: /content/* 는 항상 public (LLM 크롤러 접근)
+    //    subdomain rewrite만 수행, auth 체크 없이 즉시 반환
+    if (url.pathname.startsWith("/content/")) {
+      const contentUrl = req.nextUrl.clone();
+      contentUrl.pathname = "/" + subdomain + url.pathname;
+      return NextResponse.rewrite(contentUrl);
+    }
     // FIX: 이미 pathname이 /subdomain으로 시작하면 중복 prefix 추가하지 않음
     if (url.pathname.startsWith("/" + subdomain + "/") || url.pathname === "/" + subdomain) {
       effectivePath = url.pathname;
