@@ -116,5 +116,10 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*$).*)"],
+  // Axis 2 Phase C 수정: `.*\..*$` exclude 패턴이 `/sitemap.xml` 등을
+  // middleware 대상에서 제외시켜 rewrite가 작동하지 않는 문제 해결.
+  // — 정적 자산(/_next, favicon)만 명시 제외, .xml/.txt 등은 middleware 통과시킴.
+  matcher: [
+    "/((?!_next/static|_next/image|_next/data|favicon.ico).*)",
+  ],
 };
